@@ -40,6 +40,11 @@ class ExtractionResult(BaseModel):
     commitments: list[ExtractedCommitment]
 
 
+def _sentence_case(text: str) -> str:
+    text = text.strip()
+    return text[:1].upper() + text[1:]
+
+
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -82,7 +87,7 @@ class ExtractionService:
                     Commitment(
                         direction=item.direction,
                         person=item.person.strip(),
-                        description=item.description.strip(),
+                        description=_sentence_case(item.description),
                         due=resolve_due(item.due_phrase, today),
                         source_id=source_id,
                         source_quote=item.source_quote.strip(),
