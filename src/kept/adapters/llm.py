@@ -42,6 +42,13 @@ class LLMClient:
             max_retries=2,
         )
 
+    async def list_model_ids(self) -> list[str]:
+        try:
+            page = await self._client.models.list()
+        except OpenAIError as exc:
+            raise LLMError(f"Listing models failed: {exc}") from exc
+        return sorted(model.id for model in page.data)
+
     async def complete(
         self,
         tier: Tier,
