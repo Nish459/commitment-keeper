@@ -2,13 +2,10 @@
 
 import httpx
 
+from kept.domain.errors import SearchError
 from kept.domain.models import SearchResult
 
 _SEARCH_URL = "https://api.tavily.com/search"
-
-
-class SearchError(Exception):
-    """The web search request failed."""
 
 
 class TavilySearch:

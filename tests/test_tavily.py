@@ -4,7 +4,8 @@ import httpx
 import pytest
 
 from kept.adapters.egress import build_http_client
-from kept.adapters.tavily import SearchError, TavilySearch
+from kept.adapters.tavily import TavilySearch
+from kept.domain.errors import SearchError
 from kept.domain.models import AuditEvent
 
 
