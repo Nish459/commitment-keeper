@@ -1,6 +1,18 @@
-from typing import Protocol
+from typing import Any, Protocol
 
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus
+from pydantic import BaseModel
+
+from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Tier
+
+
+class StructuredLLM(Protocol):
+    async def complete_json[T: BaseModel](
+        self,
+        tier: Tier,
+        messages: list[dict[str, str]],
+        schema: type[T],
+        **kwargs: Any,
+    ) -> T: ...
 
 
 class AuditSink(Protocol):
