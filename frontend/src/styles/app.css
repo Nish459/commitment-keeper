@@ -927,7 +927,9 @@ tr.is-blocked td {
     overflow: visible;
   }
   .draft-actions {
-    bottom: var(--perimeter-h);
+    position: static;
+    margin: 0;
+    padding: var(--s-3) 0 var(--s-5);
   }
 }
 @media (max-width: 40rem) {
