@@ -29,7 +29,7 @@ class ScriptedLLM:
                         direction=Direction.OWED_BY_ME,
                         person="Priya",
                         description="Send competitor comparison",
-                        due=date(2026, 10, 9),
+                        due_phrase="by Friday",
                         source_quote="I'll send Priya the competitor comparison by Friday",
                     )
                 ]
