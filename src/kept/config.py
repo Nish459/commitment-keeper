@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     tavily_api_key: SecretStr = SecretStr("")
 
     db_path: Path = Path("data/kept.db")
-    web_dir: Path = Path("web")
+    web_dir: Path = Path("frontend/dist")
 
     egress_allowlist: Annotated[list[str], NoDecode] = [
         "api.tokenfactory.us-central1.nebius.com",
