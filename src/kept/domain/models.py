@@ -43,6 +43,12 @@ class Commitment(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+
 class AuditEvent(BaseModel):
     """One outbound request attempt. Never contains bodies, queries or credentials."""
 

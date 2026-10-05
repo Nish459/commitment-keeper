@@ -2,7 +2,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Tier
+from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, SearchResult, Tier
 
 
 class StructuredLLM(Protocol):
@@ -13,6 +13,10 @@ class StructuredLLM(Protocol):
         schema: type[T],
         **kwargs: Any,
     ) -> T: ...
+
+
+class WebSearch(Protocol):
+    async def search(self, query: str, max_results: int = 5) -> list[SearchResult]: ...
 
 
 class AuditSink(Protocol):
