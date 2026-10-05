@@ -93,6 +93,7 @@ async def test_prepare_drafts_with_only_fetched_sources_and_marks_ready() -> Non
     draft = await service.prepare(cid, TODAY)
 
     assert draft.sources == ["https://acme.test"]
+    assert draft.body == "Acme sells widgets.\n\nSources:\n[1] https://acme.test"
     assert search.queries == ["acme widgets"]
     assert llm.tiers == [Tier.SUPER, Tier.SUPER]
     assert "Acme sells widgets." in llm.prompts[1]

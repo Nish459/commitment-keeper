@@ -24,7 +24,8 @@ Use at most {max_queries} focused queries, or an empty list if no research is ne
 
 _DRAFT_PROMPT = """You prepare the deliverable for a promise I made, as a ready-to-send email
 from me to {person}. Today is {today}. Use ONLY facts from the provided search results; if they
-are insufficient, say what is missing instead of inventing details. Be concise and professional.
+are insufficient, say what is missing instead of inventing details. Attribute every claim taken
+from a result inline with its result number, like [1]. Be concise and professional.
 Reply with JSON only:
 {{"subject": "...", "body": "...", "source_urls": ["<urls you actually used>"]}}"""
 
@@ -91,13 +92,18 @@ class KeeperService:
         evidence = await self._gather(commitment)
         content = await self._write(commitment, evidence, today)
 
-        fetched = {r.url for r in evidence}
+        numbered = {r.url: i for i, r in enumerate(evidence, start=1)}
+        sources = [url for url in dict.fromkeys(content.source_urls) if url in numbered]
+        body = content.body.strip()
+        if sources:
+            listing = "\n".join(f"[{numbered[url]}] {url}" for url in sources)
+            body = f"{body}\n\nSources:\n{listing}"
         draft = self._drafts.add(
             Draft(
                 commitment_id=commitment_id,
                 subject=content.subject.strip(),
-                body=content.body.strip(),
-                sources=[url for url in dict.fromkeys(content.source_urls) if url in fetched],
+                body=body,
+                sources=sources,
             )
         )
         self._commitments.set_status(commitment_id, CommitmentStatus.READY_FOR_REVIEW)
@@ -115,6 +121,7 @@ class KeeperService:
             ],
             ResearchPlan,
             temperature=0.0,
+            thinking=False,
         )
         queries = [q.strip() for q in plan.queries if q.strip()][: self._max_queries]
         results: list[SearchResult] = []
@@ -149,5 +156,6 @@ class KeeperService:
             ],
             DraftContent,
             temperature=0.3,
-            max_tokens=3000,
+            max_tokens=4096,
+            thinking=False,
         )
