@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     nebius_api_key: SecretStr = SecretStr("")
     nebius_base_url: str = "https://api.tokenfactory.us-central1.nebius.com/v1/"
 
-    model_nano: str = "nvidia/nvidia-nemotron-3-nano-30b-a3b"
+    model_nano: str = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
     model_super: str = "nvidia/nemotron-3-super-120b-a12b"
-    model_ultra: str = ""
+    model_ultra: str = "nvidia/Nemotron-3-Ultra-550b-a55b"
 
     tavily_api_key: SecretStr = SecretStr("")
 
