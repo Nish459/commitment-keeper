@@ -44,9 +44,14 @@ def list_drafts(c: Deps, status: DraftStatus | None = None) -> list[Draft]:
     return c.drafts.list(status)
 
 
+class ApproveIn(BaseModel):
+    to: str = Field(min_length=3, max_length=254)
+
+
 @router.post("/drafts/{draft_id}/approve")
-def approve(draft_id: int, c: Deps) -> Draft:
-    return c.review.approve(draft_id)
+async def approve(draft_id: int, c: Deps, body: ApproveIn | None = None) -> Draft:
+    """Approve a draft. With a recipient, the email is sent first."""
+    return await c.review.approve(draft_id, body.to if body else None)
 
 
 @router.post("/drafts/{draft_id}/reject")
@@ -63,4 +68,32 @@ def audit(c: Deps, limit: Annotated[int, Query(ge=1, le=500)] = 100) -> list[Aud
 @router.get("/allowlist")
 def allowlist(c: Deps) -> list[str]:
     """The only hosts this app may contact."""
-    return sorted(c.settings.egress_allowlist)
+    return c.settings.allowed_hosts
+
+
+class EmailCapability(BaseModel):
+    enabled: bool
+    sender: str
+    recipients: list[str]
+
+
+class Capabilities(BaseModel):
+    email: EmailCapability
+
+
+@router.get("/capabilities")
+def capabilities(c: Deps) -> Capabilities:
+    s = c.settings
+    return Capabilities(
+        email=EmailCapability(
+            enabled=s.email_enabled,
+            sender=s.email_from if s.email_enabled else "",
+            recipients=(s.email_allowed_recipients or [s.email_from]) if s.email_enabled else [],
+        )
+    )
+
+
+@router.get("/contacts")
+def contacts(c: Deps) -> dict[str, str]:
+    """Email addresses Kept has used before, by lowercase person name."""
+    return c.contacts.all()

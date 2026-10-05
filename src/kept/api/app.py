@@ -11,7 +11,12 @@ from kept.adapters.llm import LLMError
 from kept.api.routes import router
 from kept.config import get_settings
 from kept.container import Container, build_container
-from kept.domain.errors import SearchError
+from kept.domain.errors import (
+    EmailError,
+    EmailNotConfiguredError,
+    RecipientNotAllowedError,
+    SearchError,
+)
 from kept.services.keeper import CommitmentNotFoundError, NotPreparableError, UngroundedDraftError
 from kept.services.review import DraftAlreadyReviewedError, DraftNotFoundError
 
@@ -24,6 +29,9 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     DraftAlreadyReviewedError: 409,
     SearchError: 502,
     UngroundedDraftError: 502,
+    EmailNotConfiguredError: 409,
+    RecipientNotAllowedError: 403,
+    EmailError: 502,
     LLMError: 502,
 }
 

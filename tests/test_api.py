@@ -12,7 +12,7 @@ from kept.adapters.sqlite import Database
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.container import build_container
-from kept.domain.errors import SearchError
+from kept.domain.errors import EmailError, SearchError
 from kept.domain.models import Direction, SearchResult, Tier
 from kept.services.extraction import ExtractedCommitment, ExtractionResult
 from kept.services.keeper import DraftContent, ResearchPlan
@@ -159,3 +159,87 @@ async def test_web_ui_is_served_from_web_dir(tmp_path: Path) -> None:
         assert "<h1>Kept</h1>" in (await client.get("/")).text
         assert (await client.get("/health")).status_code == 200
     await container.aclose()
+
+
+class FakeSender:
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+        self.fail = False
+
+    async def send(self, to: str, subject: str, body: str) -> None:
+        if self.fail:
+            raise EmailError("Sending failed: refused")
+        self.sent.append(to)
+
+
+@pytest.fixture
+async def email_env() -> AsyncIterator[tuple[httpx.AsyncClient, FakeSender]]:
+    sender = FakeSender()
+    container = build_container(
+        Settings(
+            _env_file=None,
+            smtp_host="smtp.example.com",
+            email_from="me@example.com",
+            email_allowed_recipients=["priya@acme.com"],
+        ),
+        llm=ScriptedLLM(),
+        search=FakeSearch(),
+        db=Database(":memory:"),
+        email=sender,
+        today=lambda: date(2026, 10, 7),
+    )
+    transport = httpx.ASGITransport(app=create_app(container))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, sender
+    await container.aclose()
+
+
+async def _prepared_draft(client: httpx.AsyncClient) -> int:
+    note = {"source_id": "n1", "text": NOTE}
+    cid = (await client.post("/api/notes", json=note)).json()[0]["id"]
+    return int((await client.post(f"/api/commitments/{cid}/prepare")).json()["id"])
+
+
+async def test_capabilities_and_allowlist_reflect_email_setup(
+    email_env: tuple[httpx.AsyncClient, FakeSender],
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _ = email_env
+    email = (await client.get("/api/capabilities")).json()["email"]
+    assert email == {"enabled": True, "sender": "me@example.com", "recipients": ["priya@acme.com"]}
+    assert "smtp.example.com" in (await client.get("/api/allowlist")).json()
+
+    plain, _, _ = env
+    assert (await plain.get("/api/capabilities")).json()["email"]["enabled"] is False
+
+
+async def test_approve_with_recipient_sends_and_exposes_contact(
+    email_env: tuple[httpx.AsyncClient, FakeSender],
+) -> None:
+    client, sender = email_env
+    draft_id = await _prepared_draft(client)
+
+    response = await client.post(f"/api/drafts/{draft_id}/approve", json={"to": "priya@acme.com"})
+    assert response.status_code == 200
+    assert response.json()["sent_to"] == "priya@acme.com"
+    assert sender.sent == ["priya@acme.com"]
+    assert (await client.get("/api/contacts")).json() == {"priya": "priya@acme.com"}
+
+
+async def test_approve_email_errors_map_to_http_statuses(
+    email_env: tuple[httpx.AsyncClient, FakeSender],
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, sender = email_env
+    draft_id = await _prepared_draft(client)
+    refused = await client.post(f"/api/drafts/{draft_id}/approve", json={"to": "x@evil.com"})
+    assert refused.status_code == 403
+
+    sender.fail = True
+    failed = await client.post(f"/api/drafts/{draft_id}/approve", json={"to": "priya@acme.com"})
+    assert failed.status_code == 502
+
+    plain, _, _ = env
+    plain_draft = await _prepared_draft(plain)
+    unconfigured = await plain.post(f"/api/drafts/{plain_draft}/approve", json={"to": "a@b.com"})
+    assert unconfigured.status_code == 409
