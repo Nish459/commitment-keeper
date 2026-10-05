@@ -1,11 +1,19 @@
 """SQLite persistence for commitments and the egress audit trail."""
 
+import json
 import sqlite3
 import threading
 from datetime import date, datetime
 from pathlib import Path
 
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Direction
+from kept.domain.models import (
+    AuditEvent,
+    Commitment,
+    CommitmentStatus,
+    Direction,
+    Draft,
+    DraftStatus,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS commitments (
@@ -17,6 +25,15 @@ CREATE TABLE IF NOT EXISTS commitments (
     status TEXT NOT NULL,
     source_id TEXT NOT NULL,
     source_quote TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    commitment_id INTEGER NOT NULL REFERENCES commitments(id),
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    sources TEXT NOT NULL,
+    status TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -113,6 +130,61 @@ class SqliteCommitmentRepository:
         self._db.execute(
             "UPDATE commitments SET status = ? WHERE id = ?", (status.value, commitment_id)
         )
+
+
+def _to_draft(row: sqlite3.Row) -> Draft:
+    return Draft(
+        id=row["id"],
+        commitment_id=row["commitment_id"],
+        subject=row["subject"],
+        body=row["body"],
+        sources=json.loads(row["sources"]),
+        status=DraftStatus(row["status"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+class SqliteDraftRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def add(self, draft: Draft) -> Draft:
+        cursor = self._db.execute(
+            "INSERT INTO drafts (commitment_id, subject, body, sources, status, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                draft.commitment_id,
+                draft.subject,
+                draft.body,
+                json.dumps(draft.sources),
+                draft.status.value,
+                draft.created_at.isoformat(),
+            ),
+        )
+        return draft.model_copy(update={"id": cursor.lastrowid})
+
+    def get(self, draft_id: int) -> Draft | None:
+        rows = self._db.query("SELECT * FROM drafts WHERE id = ?", (draft_id,))
+        return _to_draft(rows[0]) if rows else None
+
+    def list(self, status: DraftStatus | None = None) -> list[Draft]:
+        if status is None:
+            rows = self._db.query("SELECT * FROM drafts ORDER BY id DESC")
+        else:
+            rows = self._db.query(
+                "SELECT * FROM drafts WHERE status = ? ORDER BY id DESC", (status.value,)
+            )
+        return [_to_draft(row) for row in rows]
+
+    def for_commitment(self, commitment_id: int) -> Draft | None:
+        rows = self._db.query(
+            "SELECT * FROM drafts WHERE commitment_id = ? ORDER BY id DESC LIMIT 1",
+            (commitment_id,),
+        )
+        return _to_draft(rows[0]) if rows else None
+
+    def set_status(self, draft_id: int, status: DraftStatus) -> None:
+        self._db.execute("UPDATE drafts SET status = ? WHERE id = ?", (status.value, draft_id))
 
 
 class SqliteAuditSink:

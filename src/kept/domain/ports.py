@@ -2,7 +2,15 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, SearchResult, Tier
+from kept.domain.models import (
+    AuditEvent,
+    Commitment,
+    CommitmentStatus,
+    Draft,
+    DraftStatus,
+    SearchResult,
+    Tier,
+)
 
 
 class StructuredLLM(Protocol):
@@ -31,3 +39,15 @@ class CommitmentRepository(Protocol):
     def list(self, status: CommitmentStatus | None = None) -> list[Commitment]: ...
 
     def set_status(self, commitment_id: int, status: CommitmentStatus) -> None: ...
+
+
+class DraftRepository(Protocol):
+    def add(self, draft: Draft) -> Draft: ...
+
+    def get(self, draft_id: int) -> Draft | None: ...
+
+    def list(self, status: DraftStatus | None = None) -> list[Draft]: ...
+
+    def for_commitment(self, commitment_id: int) -> Draft | None: ...
+
+    def set_status(self, draft_id: int, status: DraftStatus) -> None: ...

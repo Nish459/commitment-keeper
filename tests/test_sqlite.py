@@ -2,8 +2,20 @@ from datetime import date
 
 import pytest
 
-from kept.adapters.sqlite import Database, SqliteAuditSink, SqliteCommitmentRepository
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Direction
+from kept.adapters.sqlite import (
+    Database,
+    SqliteAuditSink,
+    SqliteCommitmentRepository,
+    SqliteDraftRepository,
+)
+from kept.domain.models import (
+    AuditEvent,
+    Commitment,
+    CommitmentStatus,
+    Direction,
+    Draft,
+    DraftStatus,
+)
 
 
 @pytest.fixture
@@ -53,3 +65,22 @@ def test_audit_sink_persists_and_returns_newest_first(db: Database) -> None:
     assert [e.host for e in events] == ["evil.test", "a.test"]
     assert events[0].blocked is True
     assert events[1].status_code == 200
+
+
+def test_draft_roundtrip_and_status(db: Database) -> None:
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    commitment = commitments.add(_commitment("Priya"))
+    assert commitment.id is not None
+
+    saved = drafts.add(
+        Draft(commitment_id=commitment.id, subject="Hi", body="Body", sources=["https://a.test"])
+    )
+    assert saved.id is not None
+    assert drafts.get(saved.id) == saved
+    assert drafts.for_commitment(commitment.id) == saved
+    assert drafts.for_commitment(999) is None
+
+    drafts.set_status(saved.id, DraftStatus.APPROVED)
+    assert [d.id for d in drafts.list(DraftStatus.APPROVED)] == [saved.id]
+    assert drafts.list(DraftStatus.PENDING) == []

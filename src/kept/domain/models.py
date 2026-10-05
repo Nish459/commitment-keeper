@@ -49,6 +49,24 @@ class SearchResult(BaseModel):
     snippet: str
 
 
+class DraftStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class Draft(BaseModel):
+    """A prepared deliverable awaiting the user's approval. Never sent automatically."""
+
+    id: int | None = None
+    commitment_id: int
+    subject: str
+    body: str
+    sources: list[str] = Field(default_factory=list)
+    status: DraftStatus = DraftStatus.PENDING
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class AuditEvent(BaseModel):
     """One outbound request attempt. Never contains bodies, queries or credentials."""
 
