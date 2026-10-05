@@ -1,7 +1,7 @@
 """Turn raw notes into persisted commitments, rejecting anything the text does not support."""
 
 import re
-from datetime import date
+from datetime import date, timedelta
 
 from pydantic import BaseModel
 
@@ -12,8 +12,10 @@ _SYSTEM_PROMPT = """You extract commitments (promises) from meeting notes, trans
 
 The user is "me". A commitment is a concrete promise to do something, made by me to someone
 (direction "owed_by_me") or by someone to me (direction "owed_to_me"). Ignore vague intentions,
-questions, and facts. Today's date is {today}; resolve relative dates ("Friday", "next week")
-to an ISO date (YYYY-MM-DD) or null if no deadline is stated.
+questions, and facts. Resolve relative dates ("Friday", "next week") by looking them up in this
+calendar (never calculate them), as an ISO date (YYYY-MM-DD), or null if no deadline is stated.
+A weekday on its own means its next occurrence on or after today.
+{calendar}
 
 Reply with JSON only:
 {{"commitments": [{{"direction": "owed_by_me" | "owed_to_me", "person": "<the other person>",
@@ -34,6 +36,13 @@ class ExtractionResult(BaseModel):
     commitments: list[ExtractedCommitment]
 
 
+def _calendar(today: date, days: int = 21) -> str:
+    return "\n".join(
+        f"{d:%a} {d.isoformat()}" + (" (today)" if d == today else "")
+        for d in (today + timedelta(n) for n in range(days))
+    )
+
+
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -47,7 +56,7 @@ class ExtractionService:
         result = await self._llm.complete_json(
             Tier.NANO,
             [
-                {"role": "system", "content": _SYSTEM_PROMPT.format(today=today.isoformat())},
+                {"role": "system", "content": _SYSTEM_PROMPT.format(calendar=_calendar(today))},
                 {"role": "user", "content": text},
             ],
             ExtractionResult,
