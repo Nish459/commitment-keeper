@@ -1,0 +1,136 @@
+from collections.abc import AsyncIterator
+from datetime import date
+from typing import Any
+
+import httpx
+import pytest
+from pydantic import BaseModel
+
+from kept.adapters.llm import LLMOutputError
+from kept.adapters.sqlite import Database
+from kept.api.app import create_app
+from kept.config import Settings
+from kept.container import build_container
+from kept.domain.errors import SearchError
+from kept.domain.models import Direction, SearchResult, Tier
+from kept.services.extraction import ExtractedCommitment, ExtractionResult
+from kept.services.keeper import DraftContent, ResearchPlan
+
+NOTE = "I'll send Priya the competitor comparison by Friday."
+
+
+class ScriptedLLM:
+    def __init__(self) -> None:
+        self.responses: dict[type[BaseModel], BaseModel] = {
+            ExtractionResult: ExtractionResult(
+                commitments=[
+                    ExtractedCommitment(
+                        direction=Direction.OWED_BY_ME,
+                        person="Priya",
+                        description="Send competitor comparison",
+                        due=date(2026, 10, 9),
+                        source_quote="I'll send Priya the competitor comparison by Friday",
+                    )
+                ]
+            ),
+            ResearchPlan: ResearchPlan(queries=["competitors"]),
+            DraftContent: DraftContent(
+                subject="Comparison", body="Here it is.", source_urls=["https://a.test"]
+            ),
+        }
+        self.error: Exception | None = None
+
+    async def complete_json[T: BaseModel](
+        self,
+        tier: Tier,
+        messages: list[dict[str, str]],
+        schema: type[T],
+        **kwargs: Any,
+    ) -> T:
+        if self.error is not None:
+            raise self.error
+        return schema.model_validate(self.responses[schema].model_dump())
+
+
+class FakeSearch:
+    fail = False
+
+    async def search(self, query: str, max_results: int = 5) -> list[SearchResult]:
+        if self.fail:
+            raise SearchError("down")
+        return [SearchResult(title="A", url="https://a.test", snippet="facts")]
+
+
+@pytest.fixture
+async def env() -> AsyncIterator[tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch]]:
+    llm, search = ScriptedLLM(), FakeSearch()
+    container = build_container(
+        Settings(_env_file=None),
+        llm=llm,
+        search=search,
+        db=Database(":memory:"),
+        today=lambda: date(2026, 10, 7),
+    )
+    app = create_app(container)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client, llm, search
+    await container.aclose()
+
+
+async def test_full_flow_ingest_prepare_approve(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    created = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()
+    assert [c["person"] for c in created] == ["Priya"]
+    cid = created[0]["id"]
+
+    draft = (await client.post(f"/api/commitments/{cid}/prepare")).json()
+    assert draft["sources"] == ["https://a.test"]
+    assert draft["status"] == "pending"
+    ready = (await client.get("/api/commitments", params={"status": "ready_for_review"})).json()
+    assert [c["id"] for c in ready] == [cid]
+
+    approved = (await client.post(f"/api/drafts/{draft['id']}/approve")).json()
+    assert approved["status"] == "approved"
+    done = (await client.get("/api/commitments", params={"status": "done"})).json()
+    assert [c["id"] for c in done] == [cid]
+
+
+async def test_not_found_and_conflict_statuses(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    assert (await client.post("/api/commitments/99/prepare")).status_code == 404
+    assert (await client.post("/api/drafts/99/approve")).status_code == 404
+
+    cid = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()[0]["id"]
+    did = (await client.post(f"/api/commitments/{cid}/prepare")).json()["id"]
+    await client.post(f"/api/drafts/{did}/reject")
+    assert (await client.post(f"/api/drafts/{did}/approve")).status_code == 409
+
+
+async def test_upstream_failures_map_to_502(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, search = env
+    cid = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()[0]["id"]
+
+    search.fail = True
+    assert (await client.post(f"/api/commitments/{cid}/prepare")).status_code == 502
+
+    search.fail = False
+    llm.error = LLMOutputError("bad json")
+    response = await client.post("/api/notes", json={"source_id": "n2", "text": NOTE})
+    assert response.status_code == 502
+
+
+async def test_validation_and_health(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    assert (await client.post("/api/notes", json={"source_id": "", "text": "x"})).status_code == 422
+    assert (await client.get("/healthz")).json()["status"] == "ok"
+    assert (await client.get("/api/audit")).json() == []
