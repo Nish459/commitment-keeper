@@ -57,11 +57,17 @@ class LLMClient:
         temperature: float = 0.2,
         max_tokens: int = 2048,
         json_mode: bool = False,
+        thinking: bool | None = None,
     ) -> str:
+        """`thinking=False` disables the model's hidden reasoning (faster, fewer tokens)."""
         model = self._settings.model_for(tier)
         if not model:
             raise ModelNotConfiguredError(f"No model configured for tier '{tier}'")
-        extra: dict[str, Any] = {"response_format": {"type": "json_object"}} if json_mode else {}
+        extra: dict[str, Any] = {}
+        if json_mode:
+            extra["response_format"] = {"type": "json_object"}
+        if thinking is not None:
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": thinking}}
         try:
             response = await self._client.chat.completions.create(
                 model=model,
@@ -72,10 +78,14 @@ class LLMClient:
             )
         except OpenAIError as exc:
             raise LLMError(f"{tier} call failed: {exc}") from exc
-        content = response.choices[0].message.content
+        choice = response.choices[0]
+        content = _clean(choice.message.content or "")
         if not content:
-            raise LLMError(f"{tier} returned an empty response")
-        return _clean(content)
+            raise LLMError(
+                f"{tier} returned no content (finish_reason={choice.finish_reason}); "
+                "raise max_tokens or pass thinking=False"
+            )
+        return content
 
     async def complete_json[T: BaseModel](
         self,

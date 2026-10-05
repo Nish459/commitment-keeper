@@ -52,6 +52,7 @@ class ExtractionService:
             ],
             ExtractionResult,
             temperature=0.0,
+            thinking=False,
         )
         haystack = _normalize(text)
         existing = {(c.source_id, _normalize(c.source_quote)) for c in self._repo.list()}

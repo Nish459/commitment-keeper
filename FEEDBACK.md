@@ -33,3 +33,4 @@ Running notes for the required feedback section. Add entries as we build; be spe
 |---|---|---|
 | 2026-10-06 | Token Factory | `/v1/models` lists IDs with mixed case (`NVIDIA-Nemotron-3-Nano-30B-A3B`); lowercase guess from docs returned 404 "model does not exist". Docs/cookbook IDs differ from the live list. |
 | 2026-10-06 | Token Factory | Super (`nemotron-3-super-120b-a12b`) answered a trivial prompt in 0.5s through the OpenAI SDK with only a base_url change. |
+| 2026-10-06 | Nemotron 3 Nano | Reasoning is on by default: ~50 hidden tokens before the answer, so `max_tokens=64` intermittently returns empty content (finish_reason stop, text only in `reasoning`). `chat_template_kwargs.enable_thinking=false` via extra_body fixes it (2 tokens). Worth documenting prominently in the cookbook. |

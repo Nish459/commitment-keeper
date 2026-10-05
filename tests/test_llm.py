@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from kept.adapters.egress import build_http_client
-from kept.adapters.llm import LLMClient, LLMOutputError, ModelNotConfiguredError
+from kept.adapters.llm import LLMClient, LLMError, LLMOutputError, ModelNotConfiguredError
 from kept.config import Settings
 from kept.domain.models import AuditEvent, Tier
 
@@ -77,3 +77,23 @@ async def test_unconfigured_tier_raises() -> None:
     client = _client(lambda _: _reply("{}"))
     with pytest.raises(ModelNotConfiguredError):
         await client.complete(Tier.ULTRA, [{"role": "user", "content": "x"}])
+
+
+async def test_thinking_false_is_sent_as_chat_template_kwarg() -> None:
+    bodies: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return _reply("ready")
+
+    client = _client(handler)
+    await client.complete(Tier.NANO, [{"role": "user", "content": "x"}], thinking=False)
+    await client.complete(Tier.NANO, [{"role": "user", "content": "x"}])
+    assert bodies[0]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "chat_template_kwargs" not in bodies[1]
+
+
+async def test_empty_content_error_explains_cause() -> None:
+    client = _client(lambda _: _reply(""))
+    with pytest.raises(LLMError, match="thinking=False"):
+        await client.complete(Tier.NANO, [{"role": "user", "content": "x"}])

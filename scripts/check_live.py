@@ -40,7 +40,7 @@ async def main() -> None:
             reply = await llm.complete(
                 tier,
                 [{"role": "user", "content": "Reply with exactly: ready"}],
-                max_tokens=64,
+                max_tokens=256,
             )
         except LLMError as exc:
             print(f"  FAILED: {exc}")
