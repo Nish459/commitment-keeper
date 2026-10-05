@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { dueLabel } from "../format";
 import { isOverdue, latestDraft } from "../selectors";
 import { useApp } from "../state";
@@ -5,32 +7,71 @@ import type { Commitment, Draft } from "../types";
 import { DraftBody } from "./RichText";
 import { Seal, SEAL_LABEL } from "./Seal";
 
-function DraftView({ draft }: { draft: Draft }) {
+function DraftView({ draft, person }: { draft: Draft; person: string }) {
   const { state, actions } = useApp();
+  const { email } = state.capabilities;
   const pending = draft.status === "pending";
   const working = Boolean(state.busy[`draft-${draft.id}`]);
+  const remembered = state.contacts[person.toLowerCase()];
+  const [to, setTo] = useState(remembered ?? (email.recipients.length === 1 ? email.recipients[0] : "") ?? "");
+  const sentOn = draft.sent_at ? new Date(draft.sent_at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : "";
+
   return (
     <article className="draft" aria-label="Email draft">
       <div className="draft-head">
         <h3 className="draft-subject">{draft.subject}</h3>
         {!pending && (
           <span className={`draft-state is-${draft.status}`}>
-            {draft.status === "approved" ? "Approved" : "Rejected"}
+            {draft.status === "approved" ? (draft.sent_to ? "Sent" : "Approved") : "Rejected"}
           </span>
         )}
       </div>
+      {draft.sent_to && (
+        <p className="note">
+          Sent to {draft.sent_to} on {sentOn}.
+        </p>
+      )}
       <DraftBody body={draft.body} />
-      <div className="draft-actions">
-        {pending && (
-          <>
+      <form
+        className="draft-actions"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void actions.approve(draft.id, to.trim());
+        }}
+      >
+        {pending && email.enabled && (
+          <label className="send-to">
+            <span>Send to</span>
+            <input
+              type="email"
+              required
+              value={to}
+              placeholder="name@example.com"
+              onChange={(e) => setTo(e.target.value)}
+              aria-describedby={`allowed-${draft.id}`}
+            />
+            <span className="note" id={`allowed-${draft.id}`}>
+              Kept can only email {email.recipients.join(", ")}.
+            </span>
+          </label>
+        )}
+        <div className="draft-buttons">
+          {pending && email.enabled && (
+            <button className="btn btn-primary" type="submit" disabled={working}>
+              {working ? "Sending…" : "Send email"}
+            </button>
+          )}
+          {pending && (
             <button
-              className="btn btn-primary"
+              className={`btn ${email.enabled ? "btn-secondary" : "btn-primary"}`}
               type="button"
               disabled={working}
               onClick={() => void actions.approve(draft.id)}
             >
-              Approve
+              {email.enabled ? "Approve without sending" : "Approve"}
             </button>
+          )}
+          {pending && (
             <button
               className="btn btn-secondary"
               type="button"
@@ -39,12 +80,12 @@ function DraftView({ draft }: { draft: Draft }) {
             >
               Reject
             </button>
-          </>
-        )}
-        <button className="btn btn-quiet" type="button" onClick={() => void actions.copy(draft)}>
-          Copy email
-        </button>
-      </div>
+          )}
+          <button className="btn btn-quiet" type="button" onClick={() => void actions.copy(draft)}>
+            Copy email
+          </button>
+        </div>
+      </form>
     </article>
   );
 }
@@ -67,7 +108,7 @@ function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
     );
   }
   if (draft && (draft.status === "pending" || draft.status === "approved")) {
-    return <DraftView draft={draft} />;
+    return <DraftView key={draft.id} draft={draft} person={c.person} />;
   }
   if (c.status === "done") return <p className="note">Marked as kept.</p>;
 

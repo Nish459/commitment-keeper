@@ -10,7 +10,7 @@ import {
 
 import { api } from "./api";
 import { startOfToday } from "./format";
-import type { AuditEvent, Commitment, Draft } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft } from "./types";
 
 export type FilterId = "open" | "ready" | "done" | "all";
 
@@ -25,6 +25,8 @@ export interface State {
   drafts: Draft[];
   audit: AuditEvent[];
   allowlist: string[];
+  capabilities: Capabilities;
+  contacts: Record<string, string>;
   selectedId: number | null;
   filter: FilterId;
   busy: Record<string, true>;
@@ -40,6 +42,8 @@ export const initialState: State = {
   drafts: [],
   audit: [],
   allowlist: [],
+  capabilities: { email: { enabled: false, sender: "", recipients: [] } },
+  contacts: {},
   selectedId: null,
   filter: "open",
   busy: {},
@@ -52,7 +56,8 @@ export const initialState: State = {
 
 type Action =
   | { type: "loaded"; commitments: Commitment[]; drafts: Draft[]; audit: AuditEvent[] }
-  | { type: "allowlist"; hosts: string[] }
+  | { type: "setup"; hosts: string[]; capabilities: Capabilities }
+  | { type: "contacts"; contacts: Record<string, string> }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
   | { type: "busy"; key: string; value: boolean }
@@ -73,8 +78,10 @@ function reducer(state: State, action: Action): State {
         audit: action.audit,
         loading: false,
       };
-    case "allowlist":
-      return { ...state, allowlist: action.hosts };
+    case "setup":
+      return { ...state, allowlist: action.hosts, capabilities: action.capabilities };
+    case "contacts":
+      return { ...state, contacts: action.contacts };
     case "select":
       return { ...state, selectedId: action.id };
     case "filter":
@@ -107,7 +114,7 @@ export interface Actions {
   closeComposer: () => void;
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number) => Promise<void>;
-  approve: (draftId: number) => Promise<void>;
+  approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
   ingest: (name: string, text: string) => Promise<void>;
   copy: (draft: Draft) => Promise<void>;
@@ -198,12 +205,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await refresh().catch(() => undefined);
       },
 
-      approve: (draftId) =>
+      approve: (draftId, to) =>
         withBusy(`draft-${draftId}`, () =>
-          guarded(async () => {
-            await api.approve(draftId);
-            await refresh();
-          }, "Approved. Marked as kept."),
+          guarded(
+            async () => {
+              await api.approve(draftId, to);
+              await refresh();
+              if (to) dispatch({ type: "contacts", contacts: await api.contacts() });
+            },
+            to ? `Email sent to ${to}. Marked as kept.` : "Approved. Marked as kept.",
+          ),
         ),
 
       reject: (draftId) =>
@@ -237,8 +248,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void guarded(async () => {
-      const [hosts, commitments] = await Promise.all([api.allowlist(), refresh()]);
-      dispatch({ type: "allowlist", hosts });
+      const [hosts, capabilities, contacts, commitments] = await Promise.all([
+        api.allowlist(),
+        api.capabilities(),
+        api.contacts(),
+        refresh(),
+      ]);
+      dispatch({ type: "setup", hosts, capabilities });
+      dispatch({ type: "contacts", contacts });
       const first = commitments.find((c) => c.status === "ready_for_review") ?? commitments[0];
       if (first) dispatch({ type: "select", id: first.id });
     });

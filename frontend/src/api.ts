@@ -1,4 +1,4 @@
-import type { AuditEvent, Commitment, Draft } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft } from "./types";
 
 export class ApiError extends Error {}
 
@@ -29,9 +29,12 @@ export const api = {
   drafts: () => request<Draft[]>("/api/drafts"),
   audit: () => request<AuditEvent[]>("/api/audit?limit=200"),
   allowlist: () => request<string[]>("/api/allowlist"),
+  capabilities: () => request<Capabilities>("/api/capabilities"),
+  contacts: () => request<Record<string, string>>("/api/contacts"),
   ingest: (sourceId: string, text: string) =>
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
-  approve: (draftId: number) => post<Draft>(`/api/drafts/${draftId}/approve`),
+  approve: (draftId: number, to?: string) =>
+    post<Draft>(`/api/drafts/${draftId}/approve`, to ? { to } : undefined),
   reject: (draftId: number) => post<Draft>(`/api/drafts/${draftId}/reject`),
 };

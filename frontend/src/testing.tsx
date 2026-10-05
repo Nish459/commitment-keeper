@@ -48,6 +48,8 @@ export function draft(overrides: Partial<Draft> = {}): Draft {
     sources: ["https://www.acme.test/page"],
     status: "pending",
     created_at: "2026-10-06T00:00:00Z",
+    sent_to: null,
+    sent_at: null,
     ...overrides,
   };
 }

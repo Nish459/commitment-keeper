@@ -106,6 +106,61 @@ describe("Detail", () => {
   });
 });
 
+describe("Detail email sending", () => {
+  const pending = {
+    commitments: [commitment({ status: "ready_for_review" })],
+    drafts: [draft()],
+    selectedId: 1,
+  };
+  const emailOn = (recipients: string[]) => ({
+    capabilities: { email: { enabled: true, sender: "me@example.com", recipients } },
+  });
+
+  it("offers a plain Approve when email is not configured", () => {
+    renderApp(<Detail />, pending);
+    expect(screen.queryByLabelText(/Send to/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send email" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("prefills the recipient from a remembered contact and sends on submit", async () => {
+    const { actions } = renderApp(<Detail />, {
+      ...pending,
+      ...emailOn(["priya@acme.com", "@corp.com"]),
+      contacts: { priya: "priya@acme.com" },
+    });
+    expect(screen.getByLabelText(/Send to/)).toHaveValue("priya@acme.com");
+    expect(screen.getByText(/Kept can only email priya@acme.com, @corp.com/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Send email" }));
+    expect(actions.approve).toHaveBeenCalledWith(1, "priya@acme.com");
+  });
+
+  it("prefills the only allowed recipient and still allows approving without sending", async () => {
+    const { actions } = renderApp(<Detail />, { ...pending, ...emailOn(["me@example.com"]) });
+    expect(screen.getByLabelText(/Send to/)).toHaveValue("me@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Approve without sending" }));
+    expect(actions.approve).toHaveBeenCalledWith(1);
+  });
+
+  it("does not send without a recipient", async () => {
+    const { actions } = renderApp(<Detail />, { ...pending, ...emailOn(["a@x.com", "b@x.com"]) });
+    expect(screen.getByLabelText(/Send to/)).toHaveValue("");
+    await userEvent.click(screen.getByRole("button", { name: "Send email" }));
+    expect(actions.approve).not.toHaveBeenCalled();
+  });
+
+  it("shows who a sent draft went to", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ status: "done" })],
+      drafts: [draft({ status: "approved", sent_to: "priya@acme.com", sent_at: "2026-10-06T12:00:00Z" })],
+      selectedId: 1,
+    });
+    expect(screen.getByText(/Sent to priya@acme.com on/)).toBeInTheDocument();
+    expect(screen.getByText("Sent")).toBeInTheDocument();
+  });
+});
+
 describe("DraftBody", () => {
   it("renders citations as links to a numbered source list and never injects HTML", () => {
     renderApp(

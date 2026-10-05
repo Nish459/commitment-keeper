@@ -593,6 +593,29 @@
   background: var(--seal-wash);
   color: var(--seal);
 }
+.draft-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.send-to {
+  display: grid;
+  gap: var(--s-1);
+}
+.send-to > span:first-child {
+  font-weight: 600;
+  font-size: var(--step--1);
+}
+.send-to input {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+}
+.send-to .note {
+  font-size: var(--step--1);
+}
 .draft-text {
   display: grid;
   gap: var(--s-3);
@@ -651,9 +674,8 @@
 .draft-actions {
   position: sticky;
   bottom: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
+  display: grid;
+  gap: var(--s-3);
   margin: 0 calc(-1 * var(--s-5));
   padding: var(--s-3) var(--s-5);
   background: var(--surface);

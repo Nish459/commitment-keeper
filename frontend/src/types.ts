@@ -22,6 +22,12 @@ export interface Draft {
   sources: string[];
   status: DraftStatus;
   created_at: string;
+  sent_to: string | null;
+  sent_at: string | null;
+}
+
+export interface Capabilities {
+  email: { enabled: boolean; sender: string; recipients: string[] };
 }
 
 export interface AuditEvent {
