@@ -58,3 +58,9 @@ def reject(draft_id: int, c: Deps) -> Draft:
 def audit(c: Deps, limit: Annotated[int, Query(ge=1, le=500)] = 100) -> list[AuditEvent]:
     """Every outbound request attempt: what left this machine, and what was blocked."""
     return c.audit.recent(limit)
+
+
+@router.get("/allowlist")
+def allowlist(c: Deps) -> list[str]:
+    """The only hosts this app may contact."""
+    return sorted(c.settings.egress_allowlist)

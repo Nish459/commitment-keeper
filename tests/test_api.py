@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -137,3 +138,26 @@ async def test_validation_and_health(
     assert health["nebius_key_set"] is False
     assert set(health) == {"status", "version", "nebius_key_set", "tavily_key_set"}
     assert (await client.get("/api/audit")).json() == []
+
+
+async def test_allowlist_endpoint_lists_permitted_hosts(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    hosts = (await client.get("/api/allowlist")).json()
+    assert "api.tavily.com" in hosts
+
+
+async def test_web_ui_is_served_from_web_dir(tmp_path: Path) -> None:
+    (tmp_path / "index.html").write_text("<h1>Kept</h1>")
+    container = build_container(
+        Settings(_env_file=None, web_dir=tmp_path),
+        llm=ScriptedLLM(),
+        search=FakeSearch(),
+        db=Database(":memory:"),
+    )
+    transport = httpx.ASGITransport(app=create_app(container))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert "<h1>Kept</h1>" in (await client.get("/")).text
+        assert (await client.get("/health")).status_code == 200
+    await container.aclose()

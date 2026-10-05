@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from kept import __version__
 from kept.adapters.llm import LLMError
@@ -70,4 +71,8 @@ def create_app(container: Container | None = None) -> FastAPI:
 
     for error_type in _STATUS_BY_ERROR:
         app.add_exception_handler(error_type, _handle)
+
+    web_dir = (container.settings if container else get_settings()).web_dir
+    if web_dir.is_dir():
+        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
     return app
