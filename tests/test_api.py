@@ -132,5 +132,8 @@ async def test_validation_and_health(
 ) -> None:
     client, _, _ = env
     assert (await client.post("/api/notes", json={"source_id": "", "text": "x"})).status_code == 422
-    assert (await client.get("/healthz")).json()["status"] == "ok"
+    health = (await client.get("/health")).json()
+    assert health["status"] == "ok"
+    assert health["nebius_key_set"] is False
+    assert set(health) == {"status", "version", "nebius_key_set", "tavily_key_set"}
     assert (await client.get("/api/audit")).json() == []

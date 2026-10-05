@@ -30,7 +30,16 @@ def create_app(container: Container | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         owned = container is None
+        if owned:
+            logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
         app.state.container = container or build_container(get_settings())
+        settings = app.state.container.settings
+        logger.info(
+            "models nano=%s super=%s ultra=%s",
+            settings.model_nano,
+            settings.model_super,
+            settings.model_ultra,
+        )
         try:
             yield
         finally:
@@ -42,9 +51,16 @@ def create_app(container: Container | None = None) -> FastAPI:
         app.state.container = container
     app.include_router(router)
 
-    @app.get("/healthz")
-    def healthz() -> dict[str, str]:
-        return {"status": "ok", "version": __version__}
+    @app.get("/health")
+    def health(request: Request) -> dict[str, object]:
+        """Liveness plus which credentials are configured (never their values)."""
+        settings = request.app.state.container.settings
+        return {
+            "status": "ok",
+            "version": __version__,
+            "nebius_key_set": bool(settings.nebius_api_key.get_secret_value()),
+            "tavily_key_set": bool(settings.tavily_api_key.get_secret_value()),
+        }
 
     def _handle(_: Request, exc: Exception) -> JSONResponse:
         status = next(code for t, code in _STATUS_BY_ERROR.items() if isinstance(exc, t))
