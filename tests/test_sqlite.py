@@ -1,4 +1,6 @@
-from datetime import date
+import sqlite3
+from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -6,6 +8,7 @@ from kept.adapters.sqlite import (
     Database,
     SqliteAuditSink,
     SqliteCommitmentRepository,
+    SqliteContactRepository,
     SqliteDraftRepository,
 )
 from kept.domain.models import (
@@ -84,3 +87,45 @@ def test_draft_roundtrip_and_status(db: Database) -> None:
     drafts.set_status(saved.id, DraftStatus.APPROVED)
     assert [d.id for d in drafts.list(DraftStatus.APPROVED)] == [saved.id]
     assert drafts.list(DraftStatus.PENDING) == []
+
+
+def test_sent_details_roundtrip(db: Database) -> None:
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    commitment = commitments.add(_commitment("Priya"))
+    assert commitment.id is not None
+    saved = drafts.add(Draft(commitment_id=commitment.id, subject="s", body="b"))
+    assert saved.id is not None
+    assert saved.sent_to is None
+
+    sent_at = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
+    drafts.set_sent(saved.id, "priya@acme.com", sent_at)
+    stored = drafts.get(saved.id)
+    assert stored is not None
+    assert (stored.sent_to, stored.sent_at) == ("priya@acme.com", sent_at)
+
+
+def test_contacts_are_case_insensitive_and_upsert(db: Database) -> None:
+    contacts = SqliteContactRepository(db)
+    assert contacts.get("Priya") is None
+    contacts.set("Priya", "old@acme.com")
+    contacts.set("priya", "new@acme.com")
+    assert contacts.get("PRIYA") == "new@acme.com"
+    assert contacts.all() == {"priya": "new@acme.com"}
+
+
+def test_opening_a_legacy_database_adds_missing_columns(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.db"
+    legacy = sqlite3.connect(path)
+    legacy.execute(
+        "CREATE TABLE drafts (id INTEGER PRIMARY KEY AUTOINCREMENT, commitment_id INTEGER NOT NULL,"
+        " subject TEXT NOT NULL, body TEXT NOT NULL, sources TEXT NOT NULL, status TEXT NOT NULL,"
+        " created_at TEXT NOT NULL)"
+    )
+    legacy.commit()
+    legacy.close()
+
+    db = Database(path)
+    columns = {row["name"] for row in db.query("PRAGMA table_info(drafts)")}
+    assert {"sent_to", "sent_at"} <= columns
+    db.close()

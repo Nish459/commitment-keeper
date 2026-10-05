@@ -34,7 +34,13 @@ CREATE TABLE IF NOT EXISTS drafts (
     body TEXT NOT NULL,
     sources TEXT NOT NULL,
     status TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    sent_to TEXT,
+    sent_at TEXT
+);
+CREATE TABLE IF NOT EXISTS contacts (
+    person TEXT PRIMARY KEY,
+    email TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS audit_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +56,10 @@ CREATE TABLE IF NOT EXISTS audit_events (
 """
 
 
+# Columns added after the first release; older databases get them on open.
+_ADDED_COLUMNS = (("drafts", "sent_to", "TEXT"), ("drafts", "sent_at", "TEXT"))
+
+
 class Database:
     """One shared connection guarded by a lock; fine for a single-user local app."""
 
@@ -61,6 +71,13 @@ class Database:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            for table, column, kind in _ADDED_COLUMNS:
+                existing = {
+                    row["name"] for row in self._conn.execute(f"PRAGMA table_info({table})")
+                }
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            self._conn.commit()
 
     def execute(self, sql: str, params: tuple[object, ...] = ()) -> sqlite3.Cursor:
         with self._lock:
@@ -141,6 +158,8 @@ def _to_draft(row: sqlite3.Row) -> Draft:
         sources=json.loads(row["sources"]),
         status=DraftStatus(row["status"]),
         created_at=datetime.fromisoformat(row["created_at"]),
+        sent_to=row["sent_to"],
+        sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
     )
 
 
@@ -185,6 +204,31 @@ class SqliteDraftRepository:
 
     def set_status(self, draft_id: int, status: DraftStatus) -> None:
         self._db.execute("UPDATE drafts SET status = ? WHERE id = ?", (status.value, draft_id))
+
+    def set_sent(self, draft_id: int, to: str, at: datetime) -> None:
+        self._db.execute(
+            "UPDATE drafts SET sent_to = ?, sent_at = ? WHERE id = ?",
+            (to, at.isoformat(), draft_id),
+        )
+
+
+class SqliteContactRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def get(self, person: str) -> str | None:
+        rows = self._db.query("SELECT email FROM contacts WHERE person = ?", (person.lower(),))
+        return str(rows[0]["email"]) if rows else None
+
+    def set(self, person: str, email: str) -> None:
+        self._db.execute(
+            "INSERT INTO contacts (person, email) VALUES (?, ?)"
+            " ON CONFLICT(person) DO UPDATE SET email = excluded.email",
+            (person.lower(), email),
+        )
+
+    def all(self) -> dict[str, str]:
+        return {str(r["person"]): str(r["email"]) for r in self._db.query("SELECT * FROM contacts")}
 
 
 class SqliteAuditSink:

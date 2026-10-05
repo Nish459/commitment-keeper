@@ -65,6 +65,8 @@ class Draft(BaseModel):
     sources: list[str] = Field(default_factory=list)
     status: DraftStatus = DraftStatus.PENDING
     created_at: datetime = Field(default_factory=utcnow)
+    sent_to: str | None = None
+    sent_at: datetime | None = None
 
 
 class AuditEvent(BaseModel):
