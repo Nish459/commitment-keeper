@@ -28,6 +28,8 @@ class FakeLLM:
         self.tiers: list[Tier] = []
         self.draft_calls = 0
         self.last_user_prompt = ""
+        self.last_system_prompt = ""
+        self.plan_prompt = ""
 
     async def complete_json[T: BaseModel](
         self,
@@ -38,7 +40,9 @@ class FakeLLM:
     ) -> T:
         self.tiers.append(tier)
         if schema is ResearchPlan:
+            self.plan_prompt = messages[0]["content"]
             return schema.model_validate(self._plan.model_dump())
+        self.last_system_prompt = messages[0]["content"]
         self.last_user_prompt = next(m["content"] for m in messages if m["role"] == "user")
         content = self._drafts[min(self.draft_calls, len(self._drafts) - 1)]
         self.draft_calls += 1
@@ -134,6 +138,38 @@ async def test_prepare_without_research_needed_skips_search_and_citations() -> N
     assert draft.body == "Attached."
     assert search.queries == []
     assert llm.draft_calls == 1
+
+
+async def test_drafting_without_research_forbids_claims_of_progress() -> None:
+    llm = FakeLLM(ResearchPlan(queries=[]), DraftContent(subject="Hi", body="Quick question."))
+    service, _, _, cid = _setup(llm, FakeSearch())
+    await service.prepare(cid, TODAY)
+    assert "NO search results" in llm.last_system_prompt
+    assert "Do not state or imply any progress" in llm.last_system_prompt
+
+
+async def test_prompts_forbid_invented_details_commitments_and_placeholders() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert "Never add a location, date" in llm.plan_prompt
+    assert "Never invent facts about me" in llm.last_system_prompt
+    assert "Do not make new commitments" in llm.last_system_prompt
+    assert "Do not write a placeholder" in llm.last_system_prompt
+
+
+async def test_drafting_with_research_does_not_include_the_no_evidence_rule() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert "NO search results" not in llm.last_system_prompt
+
+
+async def test_planner_is_told_to_research_finding_and_booking_tasks() -> None:
+    llm = FakeLLM(ResearchPlan(queries=[]), DraftContent(subject="s", body="b"))
+    service, _, _, cid = _setup(llm, FakeSearch())
+    await service.prepare(cid, TODAY)
+    assert "finding, comparing, choosing or booking" in llm.plan_prompt
 
 
 async def test_prepare_is_idempotent_while_draft_pending() -> None:

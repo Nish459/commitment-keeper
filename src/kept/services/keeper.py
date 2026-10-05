@@ -19,15 +19,34 @@ from kept.domain.ports import CommitmentRepository, DraftRepository, StructuredL
 
 _SNIPPET_LIMIT = 1200
 
-_PLAN_PROMPT = """You help me keep a promise I made. Decide what web research, if any, is needed
-to fulfil it. Reply with JSON only: {"queries": ["<search query>", ...]}.
-Use at most {max_queries} focused queries, or an empty list if no research is needed."""
+_PLAN_PROMPT = """You help me keep a promise I made. Decide what web research is needed to
+fulfil it. Reply with JSON only: {"queries": ["<search query>", ...]}.
+Research whenever the promise involves finding, comparing, choosing or booking something (venues,
+vendors, tools, prices, options, facts). Use at most {max_queries} focused queries. Return an empty
+list only when nothing needs looking up, such as sending a file I already have.
+Use only details that appear in the promise or my original words. Never add a location, date,
+name, budget or headcount of your own. If a key detail is missing, search generically."""
 
 _DRAFT_PROMPT = """You prepare the deliverable for a promise I made, as a ready-to-send email
 from me to {person}. Today is {today}. Use ONLY facts from the provided search results; if they
 are insufficient, say what is missing instead of inventing details. Every fact taken from a
-result must end with that result's number in square brackets, like [2]. Keep it under 200 words,
-concise and professional. Reply with JSON only: {{"subject": "...", "body": "..."}}"""
+result must end with that result's number in square brackets, like [2].
+
+Rules:
+- Never invent facts about me or my plans: no locations, budgets, headcounts, names or deadlines
+  that are not in the promise, my original words, or the search results.
+- Do not make new commitments or set new dates. Only restate the existing promise and its
+  original deadline.
+- If you need a detail to proceed (location, budget, headcount), ask {person} for it.
+- Keep it under 200 words, concise and professional.
+- End with just "Best," on its own line. Do not write a placeholder for my name.
+
+Reply with JSON only: {{"subject": "...", "body": "..."}}"""
+
+_NO_EVIDENCE_RULE = """
+You have NO search results. Do not state or imply any progress, findings, options, availability,
+prices or decisions. You may only restate the promise, say it is still being worked on only if
+that is explicitly in the promise text, and ask for any information needed to proceed."""
 
 _REPAIR_PROMPT = (
     "Your draft cites no sources. Rewrite it so every fact taken from the search results ends "
@@ -149,10 +168,11 @@ class KeeperService:
     async def _write(
         self, commitment: Commitment, evidence: list[SearchResult], today: date
     ) -> DraftContent:
+        system = _DRAFT_PROMPT.format(person=commitment.person, today=today.isoformat())
         messages = [
             {
                 "role": "system",
-                "content": _DRAFT_PROMPT.format(person=commitment.person, today=today.isoformat()),
+                "content": system if evidence else system + _NO_EVIDENCE_RULE,
             },
             {
                 "role": "user",
