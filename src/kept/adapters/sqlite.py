@@ -1,0 +1,152 @@
+"""SQLite persistence for commitments and the egress audit trail."""
+
+import sqlite3
+import threading
+from datetime import date, datetime
+from pathlib import Path
+
+from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Direction
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS commitments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction TEXT NOT NULL,
+    person TEXT NOT NULL,
+    description TEXT NOT NULL,
+    due TEXT,
+    status TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_quote TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audit_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    method TEXT NOT NULL,
+    host TEXT NOT NULL,
+    path TEXT NOT NULL,
+    bytes_out INTEGER NOT NULL,
+    status_code INTEGER,
+    blocked INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL
+);
+"""
+
+
+class Database:
+    """One shared connection guarded by a lock; fine for a single-user local app."""
+
+    def __init__(self, path: Path | str) -> None:
+        if str(path) != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._lock = threading.Lock()
+        with self._lock:
+            self._conn.executescript(_SCHEMA)
+
+    def execute(self, sql: str, params: tuple[object, ...] = ()) -> sqlite3.Cursor:
+        with self._lock:
+            cursor = self._conn.execute(sql, params)
+            self._conn.commit()
+            return cursor
+
+    def query(self, sql: str, params: tuple[object, ...] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._conn.execute(sql, params).fetchall()
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+
+def _to_commitment(row: sqlite3.Row) -> Commitment:
+    return Commitment(
+        id=row["id"],
+        direction=Direction(row["direction"]),
+        person=row["person"],
+        description=row["description"],
+        due=date.fromisoformat(row["due"]) if row["due"] else None,
+        status=CommitmentStatus(row["status"]),
+        source_id=row["source_id"],
+        source_quote=row["source_quote"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+class SqliteCommitmentRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def add(self, commitment: Commitment) -> Commitment:
+        cursor = self._db.execute(
+            "INSERT INTO commitments (direction, person, description, due, status, source_id,"
+            " source_quote, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                commitment.direction.value,
+                commitment.person,
+                commitment.description,
+                commitment.due.isoformat() if commitment.due else None,
+                commitment.status.value,
+                commitment.source_id,
+                commitment.source_quote,
+                commitment.created_at.isoformat(),
+            ),
+        )
+        return commitment.model_copy(update={"id": cursor.lastrowid})
+
+    def get(self, commitment_id: int) -> Commitment | None:
+        rows = self._db.query("SELECT * FROM commitments WHERE id = ?", (commitment_id,))
+        return _to_commitment(rows[0]) if rows else None
+
+    def list(self, status: CommitmentStatus | None = None) -> list[Commitment]:
+        if status is None:
+            rows = self._db.query("SELECT * FROM commitments ORDER BY due IS NULL, due, id")
+        else:
+            rows = self._db.query(
+                "SELECT * FROM commitments WHERE status = ? ORDER BY due IS NULL, due, id",
+                (status.value,),
+            )
+        return [_to_commitment(row) for row in rows]
+
+    def set_status(self, commitment_id: int, status: CommitmentStatus) -> None:
+        self._db.execute(
+            "UPDATE commitments SET status = ? WHERE id = ?", (status.value, commitment_id)
+        )
+
+
+class SqliteAuditSink:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def record(self, event: AuditEvent) -> None:
+        self._db.execute(
+            "INSERT INTO audit_events (at, method, host, path, bytes_out, status_code, blocked,"
+            " duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                event.at.isoformat(),
+                event.method,
+                event.host,
+                event.path,
+                event.bytes_out,
+                event.status_code,
+                int(event.blocked),
+                event.duration_ms,
+            ),
+        )
+
+    def recent(self, limit: int = 100) -> list[AuditEvent]:
+        rows = self._db.query("SELECT * FROM audit_events ORDER BY id DESC LIMIT ?", (limit,))
+        return [
+            AuditEvent(
+                at=datetime.fromisoformat(row["at"]),
+                method=row["method"],
+                host=row["host"],
+                path=row["path"],
+                bytes_out=row["bytes_out"],
+                status_code=row["status_code"],
+                blocked=bool(row["blocked"]),
+                duration_ms=row["duration_ms"],
+            )
+            for row in rows
+        ]
