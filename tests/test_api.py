@@ -35,9 +35,7 @@ class ScriptedLLM:
                 ]
             ),
             ResearchPlan: ResearchPlan(queries=["competitors"]),
-            DraftContent: DraftContent(
-                subject="Comparison", body="Here it is.", source_urls=["https://a.test"]
-            ),
+            DraftContent: DraftContent(subject="Comparison", body="Here it is [1]."),
         }
         self.error: Exception | None = None
 
