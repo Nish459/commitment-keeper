@@ -27,6 +27,10 @@ class WebSearch(Protocol):
     async def search(self, query: str, max_results: int = 5) -> list[SearchResult]: ...
 
 
+class EmailSender(Protocol):
+    async def send(self, to: str, subject: str, body: str) -> None: ...
+
+
 class AuditSink(Protocol):
     def record(self, event: AuditEvent) -> None: ...
 

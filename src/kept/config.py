@@ -28,12 +28,31 @@ class Settings(BaseSettings):
         "api.tavily.com",
     ]
 
-    @field_validator("egress_allowlist", mode="before")
+    # Outbound email. Off unless smtp_host and email_from are set.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    email_from: str = ""
+    # Addresses or @domains Kept may send to. Empty means only email_from itself.
+    email_allowed_recipients: Annotated[list[str], NoDecode] = []
+
+    @field_validator("egress_allowlist", "email_allowed_recipients", mode="before")
     @classmethod
-    def _split_hosts(cls, value: object) -> object:
+    def _split_list(cls, value: object) -> object:
         if isinstance(value, str):
-            return [host.strip().lower() for host in value.split(",") if host.strip()]
+            return [item.strip().lower() for item in value.split(",") if item.strip()]
         return value
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.smtp_host and self.email_from)
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        """Every host this app may contact, including the mail server when sending is on."""
+        hosts = [*self.egress_allowlist, *([self.smtp_host.lower()] if self.email_enabled else [])]
+        return sorted(set(hosts))
 
     def model_for(self, tier: Tier) -> str:
         return {
