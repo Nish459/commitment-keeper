@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from kept.domain.models import Commitment, Direction, Tier
 from kept.domain.ports import CommitmentRepository, StructuredLLM
+from kept.domain.text import sentence_case
 from kept.services.dates import resolve_due
 
 _SYSTEM_PROMPT = """You extract commitments (promises) from meeting notes, transcripts and emails.
@@ -38,11 +39,6 @@ class ExtractedCommitment(BaseModel):
 
 class ExtractionResult(BaseModel):
     commitments: list[ExtractedCommitment]
-
-
-def _sentence_case(text: str) -> str:
-    text = text.strip()
-    return text[:1].upper() + text[1:]
 
 
 def _normalize(text: str) -> str:
@@ -86,8 +82,8 @@ class ExtractionService:
                 self._repo.add(
                     Commitment(
                         direction=item.direction,
-                        person=_sentence_case(item.person),
-                        description=_sentence_case(item.description),
+                        person=sentence_case(item.person),
+                        description=sentence_case(item.description),
                         due=resolve_due(item.due_phrase, today),
                         source_id=source_id,
                         source_quote=item.source_quote.strip(),

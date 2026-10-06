@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -8,6 +9,7 @@ from kept.domain.models import (
     AuditEvent,
     Commitment,
     CommitmentStatus,
+    Direction,
     Draft,
     DraftStatus,
     utcnow,
@@ -18,6 +20,11 @@ from kept.services.planner import WeekCheck
 from kept.services.sweep import SweepResult
 
 router = APIRouter(prefix="/api")
+
+# Trimmed, non-empty, no line breaks: safe to put in an email header or a one-line field.
+OneLine = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[^\r\n]+$")
+]
 
 
 def get_container(request: Request) -> Container:
@@ -42,6 +49,20 @@ async def ingest_note(note: NoteIn, c: Deps) -> list[Commitment]:
     """Extract and store the commitments found in a note."""
     async with c.guarded("notes", len(note.text)):
         return await c.extraction.extract(note.source_id, note.text, c.today())
+
+
+class PromiseIn(BaseModel):
+    direction: Direction
+    person: Annotated[OneLine, Field(max_length=100)]
+    description: Annotated[OneLine, Field(max_length=300)]
+    due: date | None = None
+
+
+@router.post("/commitments", status_code=201)
+async def add_promise(promise: PromiseIn, c: Deps) -> Commitment:
+    """Add one promise by hand. No model is involved, so it is instant."""
+    async with c.guarded("manual"):
+        return c.manual.add(promise.direction, promise.person, promise.description, promise.due)
 
 
 @router.get("/commitments")
@@ -89,12 +110,7 @@ def list_drafts(c: Deps, status: DraftStatus | None = None) -> list[Draft]:
 
 class DraftEditIn(BaseModel):
     # A newline in the subject would corrupt the email header, so it is rejected up front.
-    subject: Annotated[
-        str,
-        StringConstraints(
-            strip_whitespace=True, min_length=1, max_length=200, pattern=r"^[^\r\n]+$"
-        ),
-    ]
+    subject: Annotated[OneLine, Field(max_length=200)]
     body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)]
 
 

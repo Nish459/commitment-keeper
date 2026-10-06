@@ -9,6 +9,7 @@ from kept.config import Settings
 from kept.demo import COOKIE_NAME, SessionManager, build_session_manager
 from kept.domain.errors import DemoLimitError
 from tests.fakes import NOTE, FakeSearch, ScriptedLLM
+from tests.helpers import demo_client as _client
 
 TODAY = date(2026, 10, 7)  # a Wednesday
 
@@ -22,11 +23,6 @@ def _manager(settings: Settings, llm: ScriptedLLM | None = None, **kw: object) -
     return build_session_manager(
         settings, llm=llm or ScriptedLLM(), search=FakeSearch(), today=lambda: TODAY, **kw
     )
-
-
-def _client(settings: Settings, manager: SessionManager) -> httpx.AsyncClient:
-    app = create_app(sessions=manager, settings=settings)
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
 
 
 @pytest.fixture
