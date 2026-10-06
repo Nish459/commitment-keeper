@@ -1286,3 +1286,13 @@ tr.is-blocked td {
 .theme-switching *::after {
   transition: none !important;
 }
+
+/* ---------- What Kept remembers about a person ---------- */
+.memory {
+  margin: 0 0 var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  background: var(--paper);
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font-size: var(--step--1);
+}

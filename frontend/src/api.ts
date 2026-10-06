@@ -5,6 +5,7 @@ import type {
   Commitment,
   Draft,
   NewPromise,
+  PersonSummary,
   SweepResult,
   WeekCheck,
 } from "./types";
@@ -45,6 +46,7 @@ export const api = {
   commitments: () => request<Commitment[]>("/api/commitments"),
   addPromise: (promise: NewPromise) => post<Commitment>("/api/commitments", promise),
   drafts: () => request<Draft[]>("/api/drafts"),
+  people: () => request<PersonSummary[]>("/api/people"),
   audit: () => request<AuditEvent[]>("/api/audit?limit=200"),
   unlockDemo: (code: string) => post<{ unlocked: boolean }>("/api/demo/access", { code }),
   allowlist: () => request<string[]>("/api/allowlist"),

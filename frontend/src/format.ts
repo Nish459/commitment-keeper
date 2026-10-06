@@ -32,6 +32,8 @@ export function addDays(date: Date, days: number): Date {
 
 export const weekdayName = (date: Date) => weekday.format(date);
 export const dayMonthName = (date: Date) => dayMonth.format(date);
+/** A moment as a short day and month, like "6 Oct" is shown here as "Oct 6". */
+export const shortDay = (iso: string) => dayMonth.format(new Date(iso));
 export const clockTime = (iso: string) => clock.format(new Date(iso));
 
 export function dueLabel(iso: string | null, today: Date): string {

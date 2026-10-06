@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-import { dueLabel, plural } from "../format";
-import { byDue, directionLabel, isClosed, isOverdue, matchesQuery } from "../selectors";
+import { dueLabel, plural, shortDay } from "../format";
+import { byDue, directionLabel, findPerson, isClosed, isOverdue, matchesQuery } from "../selectors";
 import { useApp, type FilterId } from "../state";
 import type { Commitment } from "../types";
 import { Seal, SEAL_LABEL } from "./Seal";
@@ -128,7 +128,14 @@ export function Ledger() {
         [...groups].map(([person, items]) => {
           const mine = items.filter((c) => c.direction === "owed_by_me").length;
           const theirs = items.length - mine;
-          const counts = [mine && `${mine} you owe`, theirs && `${theirs} owes you`].filter(Boolean).join(", ");
+          const emailed = findPerson(state.people, person)?.last_emailed_at;
+          const counts = [
+            mine && `${mine} you owe`,
+            theirs && `${theirs} owes you`,
+            emailed && `emailed ${shortDay(emailed)}`,
+          ]
+            .filter(Boolean)
+            .join(", ");
           return (
             <section className="group" key={person} aria-label={person}>
               <h3 className="group-title">

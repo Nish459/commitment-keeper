@@ -1,5 +1,5 @@
-import { dayDiff } from "./format";
-import type { Commitment, Draft } from "./types";
+import { dayDiff, plural, shortDay } from "./format";
+import type { Commitment, Draft, PersonSummary } from "./types";
 
 export const isClosed = (c: Commitment) => c.status === "done" || c.status === "dropped";
 
@@ -46,4 +46,25 @@ export function matchesQuery(c: Commitment, query: string): boolean {
   if (!words.length) return true;
   const haystack = fold(`${c.person} ${c.description}`);
   return words.every((word) => haystack.includes(word));
+}
+
+export const findPerson = (people: PersonSummary[], name: string) =>
+  people.find((p) => p.name.toLowerCase() === name.toLowerCase());
+
+/** What Kept remembers about someone, in plain sentences. Empty when there is nothing worth saying. */
+export function historySentences(person: PersonSummary): string[] {
+  const sentences: string[] = [];
+  if (person.promises_by_me > 0) {
+    sentences.push(
+      `You've made ${person.name} ${plural(person.promises_by_me, "promise")} and kept ${person.kept_by_me}.`,
+    );
+  }
+  if (person.emails_sent > 0 && person.last_emailed_at) {
+    const subject = person.last_subject ?? "no subject";
+    sentences.push(`Last emailed ${shortDay(person.last_emailed_at)}: \u201c${subject}\u201d.`);
+  }
+  if (person.open_to_me > 0) {
+    sentences.push(`${person.name} still owes you ${plural(person.open_to_me, "thing")}.`);
+  }
+  return sentences;
 }

@@ -80,3 +80,15 @@ export interface Attachment {
   content_type: string;
   size: number;
 }
+
+export interface PersonSummary {
+  name: string;
+  promises_by_me: number;
+  kept_by_me: number;
+  open_by_me: number;
+  open_to_me: number;
+  overdue: number;
+  emails_sent: number;
+  last_emailed_at: string | null;
+  last_subject: string | null;
+}

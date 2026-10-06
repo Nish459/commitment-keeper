@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { vi } from "vitest";
 
 import { AppContext, initialState, type Actions, type State } from "./state";
-import type { Commitment, Draft } from "./types";
+import type { Commitment, Draft, PersonSummary } from "./types";
 
 export const TODAY = new Date(2026, 9, 6);
 
@@ -73,4 +73,19 @@ export function renderApp(ui: ReactElement, state: Partial<State> = {}) {
     <AppContext.Provider value={{ state: merged, actions, today: TODAY }}>{ui}</AppContext.Provider>,
   );
   return { ...result, actions };
+}
+
+export function person(overrides: Partial<PersonSummary> = {}): PersonSummary {
+  return {
+    name: "Priya",
+    promises_by_me: 0,
+    kept_by_me: 0,
+    open_by_me: 0,
+    open_to_me: 0,
+    overdue: 0,
+    emails_sent: 0,
+    last_emailed_at: null,
+    last_subject: null,
+    ...overrides,
+  };
 }

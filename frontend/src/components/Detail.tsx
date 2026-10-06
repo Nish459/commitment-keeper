@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 import { dueLabel } from "../format";
-import { isOverdue, latestDraft } from "../selectors";
+import { findPerson, historySentences, isOverdue, latestDraft } from "../selectors";
 import { useApp } from "../state";
-import type { Commitment, Draft } from "../types";
+import type { Commitment, Draft, PersonSummary } from "../types";
 import { Attachments } from "./Attachments";
 import { DraftBody } from "./RichText";
 import { Seal, SEAL_LABEL } from "./Seal";
@@ -203,6 +203,17 @@ function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
   );
 }
 
+/** What Kept remembers about this person, so it is clear why a follow-up reads the way it does. */
+function Memory({ person }: { person: PersonSummary | undefined }) {
+  const sentences = person ? historySentences(person) : [];
+  if (!person || sentences.length === 0) return null;
+  return (
+    <section className="memory" aria-label={`History with ${person.name}`}>
+      <p>{sentences.join(" ")}</p>
+    </section>
+  );
+}
+
 export function Detail() {
   const { state, today } = useApp();
   const c = state.commitments.find((x) => x.id === state.selectedId);
@@ -245,6 +256,7 @@ export function Detail() {
           ) : (
             <p className="provenance provenance-plain">{c.source_id}</p>
           )}
+          <Memory person={findPerson(state.people, c.person)} />
           <WorkArea c={c} draft={latestDraft(state.drafts, c.id)} />
         </div>
       )}

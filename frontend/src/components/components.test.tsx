@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { commitment, draft, renderApp, TODAY } from "../testing";
+import { commitment, draft, person, renderApp, TODAY } from "../testing";
 import { App } from "../App";
 import { DemoBanner } from "./DemoBanner";
 import { Composer } from "./Composer";
@@ -684,5 +684,48 @@ describe("Ledger search", () => {
     await userEvent.click(screen.getByLabelText("elsewhere"));
     await userEvent.keyboard("/");
     expect(screen.getByLabelText("elsewhere")).toHaveValue("/");
+  });
+});
+
+
+describe("What Kept remembers", () => {
+  const priya = person({
+    promises_by_me: 3,
+    kept_by_me: 2,
+    open_to_me: 1,
+    emails_sent: 2,
+    last_emailed_at: "2026-10-06T10:00:00Z",
+    last_subject: "Competitor comparison",
+  });
+
+  it("shows the history with a person next to their promise", () => {
+    renderApp(<Detail />, { commitments: [commitment()], people: [priya], selectedId: 1 });
+    const memory = screen.getByRole("region", { name: "History with Priya" });
+    expect(memory).toHaveTextContent("You've made Priya 3 promises and kept 2.");
+    expect(memory).toHaveTextContent("Last emailed Oct 6: \u201cCompetitor comparison\u201d.");
+    expect(memory).toHaveTextContent("Priya still owes you 1 thing.");
+  });
+
+  it("matches a person regardless of letter case", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ person: "priya" })],
+      people: [priya],
+      selectedId: 1,
+    });
+    expect(screen.getByRole("region", { name: "History with Priya" })).toBeInTheDocument();
+  });
+
+  it("says nothing when there is nothing worth saying", () => {
+    renderApp(<Detail />, { commitments: [commitment()], people: [person()], selectedId: 1 });
+    expect(screen.queryByRole("region", { name: /History with/ })).not.toBeInTheDocument();
+  });
+
+  it("notes when you last emailed someone in the ledger heading", () => {
+    renderApp(<Ledger />, {
+      commitments: [commitment()],
+      people: [priya],
+      filter: "all",
+    });
+    expect(screen.getByRole("heading", { name: /Priya.*emailed Oct 6/ })).toBeInTheDocument();
   });
 });

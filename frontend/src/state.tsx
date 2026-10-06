@@ -17,6 +17,7 @@ import type {
   Commitment,
   Draft,
   NewPromise,
+  PersonSummary,
   WeekCheck,
 } from "./types";
 
@@ -32,6 +33,7 @@ export interface ToastMessage {
 export interface State {
   commitments: Commitment[];
   drafts: Draft[];
+  people: PersonSummary[];
   audit: AuditEvent[];
   allowlist: string[];
   capabilities: Capabilities;
@@ -53,6 +55,7 @@ export interface State {
 export const initialState: State = {
   commitments: [],
   drafts: [],
+  people: [],
   audit: [],
   allowlist: [],
   capabilities: {
@@ -77,7 +80,13 @@ export const initialState: State = {
 };
 
 type Action =
-  | { type: "loaded"; commitments: Commitment[]; drafts: Draft[]; audit: AuditEvent[] }
+  | {
+      type: "loaded";
+      commitments: Commitment[];
+      drafts: Draft[];
+      people: PersonSummary[];
+      audit: AuditEvent[];
+    }
   | { type: "setup"; hosts: string[]; capabilities: Capabilities }
   | { type: "contacts"; contacts: Record<string, string> }
   | { type: "profile"; name: string }
@@ -101,6 +110,7 @@ function reducer(state: State, action: Action): State {
         ...state,
         commitments: action.commitments,
         drafts: action.drafts,
+        people: action.people,
         audit: action.audit,
         loading: false,
       };
@@ -198,12 +208,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [commitments, drafts, audit] = await Promise.all([
+    const [commitments, drafts, people, audit] = await Promise.all([
       api.commitments(),
       api.drafts(),
+      api.people(),
       api.audit(),
     ]);
-    dispatch({ type: "loaded", commitments, drafts, audit });
+    dispatch({ type: "loaded", commitments, drafts, people, audit });
     return commitments;
   }, []);
 
