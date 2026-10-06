@@ -72,3 +72,11 @@ export interface NewPromise {
   description: string;
   due: string | null;
 }
+
+export interface Attachment {
+  id: number;
+  draft_id: number;
+  filename: string;
+  content_type: string;
+  size: number;
+}

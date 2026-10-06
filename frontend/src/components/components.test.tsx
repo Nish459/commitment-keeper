@@ -528,3 +528,80 @@ describe("Detail for a promise added by hand", () => {
     expect(document.querySelector("blockquote")).toBeNull();
   });
 });
+
+
+describe("Attachments", () => {
+  const emailOn = {
+    capabilities: {
+      email: { enabled: true, sender: "me@example.com", recipients: ["zoe@acme.com"] },
+      demo: false,
+      access_code: false,
+      unlocked: false,
+    },
+  };
+  const needsFile = {
+    commitments: [commitment({ status: "ready_for_review" })],
+    drafts: [draft({ needs_attachment: true })],
+    selectedId: 1,
+  };
+  const file = { id: 5, draft_id: 1, filename: "roadmap.pdf", content_type: "application/pdf", size: 2048 };
+
+  it("loads the draft's files and warns when the email says attached but nothing is", async () => {
+    const { actions } = renderApp(<Detail />, { ...needsFile, ...emailOn });
+    expect(actions.loadAttachments).toHaveBeenCalledWith(1);
+    expect(screen.getByText(/This email says a file is attached. Add it before sending/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send email" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Approve without sending" })).toBeEnabled();
+  });
+
+  it("lists attached files and unlocks sending", async () => {
+    const { actions } = renderApp(<Detail />, { ...needsFile, ...emailOn, attachments: { 1: [file] } });
+    expect(screen.getByText("roadmap.pdf")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
+    expect(screen.queryByText(/Add it before sending/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add more files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send email" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove roadmap.pdf" }));
+    expect(actions.removeAttachment).toHaveBeenCalledWith(1, 5);
+  });
+
+  it("uploads every chosen file, so several can go in one email", async () => {
+    const { actions } = renderApp(<Detail />, { ...needsFile, ...emailOn });
+    const a = new File(["a"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["b"], "b.csv", { type: "text/csv" });
+    await userEvent.upload(screen.getByLabelText("Choose files to attach"), [a, b]);
+    expect(actions.addAttachments).toHaveBeenCalledWith(1, [a, b]);
+  });
+
+  it("does not block sending an ordinary email that needs no file", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ status: "ready_for_review" })],
+      drafts: [draft()],
+      selectedId: 1,
+      ...emailOn,
+    });
+    expect(screen.getByRole("button", { name: "Send email" })).toBeEnabled();
+    expect(screen.queryByText(/says a file is attached/)).not.toBeInTheDocument();
+  });
+
+  it("shows a sent email's files read-only", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ status: "done" })],
+      drafts: [draft({ status: "approved", needs_attachment: true, sent_to: "zoe@acme.com", sent_at: "2026-10-06T12:00:00Z" })],
+      selectedId: 1,
+      attachments: { 1: [file] },
+      ...emailOn,
+    });
+    expect(screen.getByRole("heading", { name: "Sent with" })).toBeInTheDocument();
+    expect(screen.getByText("roadmap.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add/ })).not.toBeInTheDocument();
+  });
+
+  it("explains what to do when sending is off", () => {
+    renderApp(<Detail />, needsFile);
+    expect(screen.getByText(/Sending is off, so copy the text and attach the file/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Choose files to attach")).not.toBeInTheDocument();
+  });
+});

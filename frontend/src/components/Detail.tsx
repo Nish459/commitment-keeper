@@ -4,6 +4,7 @@ import { dueLabel } from "../format";
 import { isOverdue, latestDraft } from "../selectors";
 import { useApp } from "../state";
 import type { Commitment, Draft } from "../types";
+import { Attachments } from "./Attachments";
 import { DraftBody } from "./RichText";
 import { Seal, SEAL_LABEL } from "./Seal";
 
@@ -21,6 +22,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
   const [subject, setSubject] = useState(draft.subject);
   const [text, setText] = useState(draft.body);
   const [saving, setSaving] = useState(false);
+  const missingFile = draft.needs_attachment && (state.attachments[draft.id] ?? []).length === 0;
   const sentOn = draft.sent_at ? new Date(draft.sent_at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : "";
 
   if (editing) {
@@ -93,6 +95,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
         </p>
       )}
       <DraftBody body={draft.body} />
+      <Attachments draft={draft} />
       <form
         className="draft-actions"
         onSubmit={(event) => {
@@ -130,7 +133,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
         )}
         <div className="draft-buttons">
           {pending && email.enabled && (
-            <button className="btn btn-primary" type="submit" disabled={working}>
+            <button className="btn btn-primary" type="submit" disabled={working || missingFile}>
               {working ? "Sending…" : "Send email"}
             </button>
           )}

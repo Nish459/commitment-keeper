@@ -1,4 +1,13 @@
-import type { AuditEvent, Capabilities, Commitment, Draft, NewPromise, SweepResult, WeekCheck } from "./types";
+import type {
+  Attachment,
+  AuditEvent,
+  Capabilities,
+  Commitment,
+  Draft,
+  NewPromise,
+  SweepResult,
+  WeekCheck,
+} from "./types";
 
 export class ApiError extends Error {}
 
@@ -14,6 +23,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = (body as { detail?: unknown }).detail;
     throw new ApiError(typeof detail === "string" ? detail : `Request failed (${response.status})`);
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -49,6 +59,14 @@ export const api = {
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
   updateDraft: (draftId: number, subject: string, body: string) =>
     put<Draft>(`/api/drafts/${draftId}`, { subject, body }),
+  attachments: (draftId: number) => request<Attachment[]>(`/api/drafts/${draftId}/attachments`),
+  uploadAttachment: (draftId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Attachment>(`/api/drafts/${draftId}/attachments`, { method: "POST", body: form });
+  },
+  removeAttachment: (draftId: number, attachmentId: number) =>
+    request<void>(`/api/drafts/${draftId}/attachments/${attachmentId}`, { method: "DELETE" }),
   approve: (draftId: number, to?: string) =>
     post<Draft>(`/api/drafts/${draftId}/approve`, to ? { to } : undefined),
   reject: (draftId: number) => post<Draft>(`/api/drafts/${draftId}/reject`),

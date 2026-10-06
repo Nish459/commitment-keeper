@@ -10,7 +10,15 @@ import {
 
 import { api } from "./api";
 import { plural, startOfToday } from "./format";
-import type { AuditEvent, Capabilities, Commitment, Draft, NewPromise, WeekCheck } from "./types";
+import type {
+  Attachment,
+  AuditEvent,
+  Capabilities,
+  Commitment,
+  Draft,
+  NewPromise,
+  WeekCheck,
+} from "./types";
 
 export type FilterId = "open" | "ready" | "done" | "all";
 export type ComposerMode = "notes" | "hand";
@@ -31,6 +39,7 @@ export interface State {
   profileName: string;
   profileOpen: boolean;
   weekCheck: WeekCheck | null;
+  attachments: Record<number, Attachment[]>;
   selectedId: number | null;
   filter: FilterId;
   busy: Record<string, true>;
@@ -56,6 +65,7 @@ export const initialState: State = {
   profileName: "",
   profileOpen: false,
   weekCheck: null,
+  attachments: {},
   selectedId: null,
   filter: "open",
   busy: {},
@@ -73,6 +83,7 @@ type Action =
   | { type: "profile"; name: string }
   | { type: "profileDialog"; open: boolean }
   | { type: "weekCheck"; result: WeekCheck }
+  | { type: "attachments"; draftId: number; files: Attachment[] }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
   | { type: "busy"; key: string; value: boolean }
@@ -99,6 +110,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, contacts: action.contacts };
     case "profile":
       return { ...state, profileName: action.name };
+    case "attachments":
+      return { ...state, attachments: { ...state.attachments, [action.draftId]: action.files } };
     case "weekCheck":
       return { ...state, weekCheck: action.result };
     case "profileDialog":
@@ -147,6 +160,9 @@ export interface Actions {
   prepare: (commitmentId: number) => Promise<void>;
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
+  loadAttachments: (draftId: number) => Promise<void>;
+  addAttachments: (draftId: number, files: File[]) => Promise<void>;
+  removeAttachment: (draftId: number, attachmentId: number) => Promise<void>;
   unlockDemo: (code: string) => Promise<boolean>;
   saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
   approve: (draftId: number, to?: string) => Promise<void>;
@@ -253,6 +269,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }, "Draft ready for your review."),
         );
         await refresh().catch(() => undefined);
+      },
+
+      async loadAttachments(draftId) {
+        try {
+          dispatch({ type: "attachments", draftId, files: await api.attachments(draftId) });
+        } catch {
+          // Not being able to list files must not break the draft view.
+        }
+      },
+
+      async addAttachments(draftId, files) {
+        // One at a time so a bad file is reported by name and the good ones still attach.
+        for (const file of files) {
+          try {
+            await api.uploadAttachment(draftId, file);
+          } catch (error) {
+            toast(error instanceof Error ? error.message : `Couldn't attach ${file.name}.`, true);
+          }
+        }
+        dispatch({ type: "attachments", draftId, files: await api.attachments(draftId) });
+      },
+
+      async removeAttachment(draftId, attachmentId) {
+        await guarded(async () => {
+          await api.removeAttachment(draftId, attachmentId);
+          dispatch({ type: "attachments", draftId, files: await api.attachments(draftId) });
+        });
       },
 
       async unlockDemo(code) {
