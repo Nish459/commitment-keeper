@@ -74,7 +74,7 @@ describe("theme choice", () => {
     await userEvent.click(screen.getByRole("button"));
 
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute("content", "#101012");
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute("content", "#17171b");
     expect(localStorage.getItem("kept-theme")).toBe("dark");
   });
 

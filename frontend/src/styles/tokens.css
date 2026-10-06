@@ -115,10 +115,10 @@
   /* Graphite: neutral greys with no colour cast, so the accent is the only colour on screen. */
   --ink: #ececf0;
   --muted: #a3a3ae;
-  --paper: #101012;
-  --surface: #1a1a1e;
-  --line: #2a2a31;
-  --line-strong: #3b3b44;
+  --paper: #17171b;
+  --surface: #202026;
+  --line: #30303a;
+  --line-strong: #444450;
   --control-border: #727280;
   --rule: #9a9aa6;
   --placeholder: #8b8b97;
@@ -130,7 +130,7 @@
   --cobalt-ink: #a9b8ff;
   --cobalt-icon: #8398ff;
   --cobalt-wash: #232843;
-  --today-wash: #1d1d23;
+  --today-wash: #25252c;
   --cobalt-wash-hover: #2d3458;
   --cobalt-border: #343b63;
   --on-cobalt: #ffffff;
@@ -139,14 +139,14 @@
   --kept-wash: #1a2b26;
   --seal: #ff7b82;
   --seal-wash: #2f1c20;
-  --on-icon: #101012;
+  --on-icon: #17171b;
   --spinner-track: rgb(148 168 255 / 0.25);
 
   --inverse: #ececf0;
-  --on-inverse: #101012;
+  --on-inverse: #17171b;
   --on-inverse-muted: #4d4d58;
 
-  --bar-bg: #232328;
+  --bar-bg: #2a2a31;
   --bar-text: #f2f2f5;
   --bar-muted: #b0b0bb;
   --bar-accent: #6fe0bd;

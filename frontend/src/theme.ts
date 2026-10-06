@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "kept-theme";
-const COLORS: Record<Theme, string> = { light: "#f3f5f7", dark: "#101012" };
+const COLORS: Record<Theme, string> = { light: "#f3f5f7", dark: "#17171b" };
 
 // The same rule runs inline in index.html before first paint, so the page never flashes the wrong theme.
 export function systemTheme(): Theme {
