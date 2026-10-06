@@ -81,7 +81,7 @@ def _setup(
         )
     )
     assert saved.id is not None
-    service = KeeperService(llm, search, commitments, drafts, signature=signature)
+    service = KeeperService(llm, search, commitments, drafts, signature=lambda: signature)
     return service, commitments, drafts, saved.id
 
 
@@ -237,3 +237,25 @@ async def test_body_text_that_merely_contains_thanks_is_kept() -> None:
     draft = await service.prepare(cid, TODAY)
     assert draft.body.startswith(body)
     assert draft.body.endswith("Best,\nKanisha Agarwal")
+
+
+async def test_signature_is_read_fresh_for_every_draft() -> None:
+    names = iter(["First Person", "Second Person"])
+    llm = FakeLLM(ResearchPlan(queries=[]), DraftContent(subject="s", body="Hello."))
+    db = Database(":memory:")
+    commitments, drafts = SqliteCommitmentRepository(db), SqliteDraftRepository(db)
+    service = KeeperService(llm, FakeSearch(), commitments, drafts, signature=lambda: next(names))
+    bodies = []
+    for _ in range(2):
+        saved = commitments.add(
+            Commitment(
+                direction=Direction.OWED_BY_ME,
+                person="Priya",
+                description="Send it",
+                source_id="n",
+                source_quote="q",
+            )
+        )
+        bodies.append((await service.prepare(saved.id or 0, TODAY)).body)
+    assert bodies[0].endswith("Best,\nFirst Person")
+    assert bodies[1].endswith("Best,\nSecond Person")

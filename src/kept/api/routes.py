@@ -114,3 +114,22 @@ def capabilities(c: Deps) -> Capabilities:
 def contacts(c: Deps) -> dict[str, str]:
     """Email addresses Kept has used before, by lowercase person name."""
     return c.contacts.all()
+
+
+class Profile(BaseModel):
+    # Empty clears the saved name. No line breaks: the name goes into the email signature.
+    name: Annotated[
+        str, StringConstraints(strip_whitespace=True, max_length=100, pattern=r"^[^\r\n]*$")
+    ]
+
+
+@router.get("/profile")
+def get_profile(c: Deps) -> Profile:
+    """Who Kept signs emails as: the saved name, else KEPT_USER_NAME, else nobody."""
+    return Profile(name=c.profile.get_name() or c.settings.user_name)
+
+
+@router.put("/profile")
+def save_profile(profile: Profile, c: Deps) -> Profile:
+    c.profile.set_name(profile.name)
+    return Profile(name=c.profile.get_name() or c.settings.user_name)

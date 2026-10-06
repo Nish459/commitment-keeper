@@ -271,3 +271,27 @@ async def test_edit_draft_updates_text_and_validates_input(
     await client.post(f"/api/drafts/{draft_id}/reject")
     reviewed = await client.put(f"/api/drafts/{draft_id}", json={"subject": "s", "body": "b"})
     assert reviewed.status_code == 409
+
+
+async def test_profile_name_is_saved_trimmed_and_falls_back_to_the_setting(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    assert (await client.get("/api/profile")).json() == {"name": ""}
+
+    saved = await client.put("/api/profile", json={"name": "  Ada Lovelace "})
+    assert saved.json() == {"name": "Ada Lovelace"}
+    assert (await client.get("/api/profile")).json() == {"name": "Ada Lovelace"}
+
+    assert (await client.put("/api/profile", json={"name": ""})).json() == {"name": ""}
+    assert (await client.put("/api/profile", json={"name": "A\nBcc: x@y.com"})).status_code == 422
+
+
+async def test_drafts_are_signed_with_the_saved_profile_name(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    await client.put("/api/profile", json={"name": "Ada Lovelace"})
+    draft_id = await _prepared_draft(client)
+    draft = next(d for d in (await client.get("/api/drafts")).json() if d["id"] == draft_id)
+    assert "Best,\nAda Lovelace" in draft["body"]

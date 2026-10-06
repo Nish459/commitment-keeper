@@ -10,6 +10,7 @@ from kept.adapters.sqlite import (
     SqliteCommitmentRepository,
     SqliteContactRepository,
     SqliteDraftRepository,
+    SqliteProfileRepository,
 )
 from kept.domain.models import (
     AuditEvent,
@@ -148,3 +149,13 @@ def test_update_content_changes_only_subject_and_body(db: Database) -> None:
     assert stored is not None
     assert (stored.subject, stored.body) == ("New", "New body")
     assert (stored.sources, stored.status) == (["https://a.test"], DraftStatus.PENDING)
+
+
+def test_profile_name_roundtrip_overwrite_and_clear(db: Database) -> None:
+    profile = SqliteProfileRepository(db)
+    assert profile.get_name() is None
+    profile.set_name("Ada Lovelace")
+    profile.set_name("Grace Hopper")
+    assert profile.get_name() == "Grace Hopper"
+    profile.set_name("")
+    assert profile.get_name() is None

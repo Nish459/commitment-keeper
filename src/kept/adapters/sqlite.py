@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS contacts (
     person TEXT PRIMARY KEY,
     email TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    name TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     at TEXT NOT NULL,
@@ -234,6 +238,27 @@ class SqliteContactRepository:
 
     def all(self) -> dict[str, str]:
         return {str(r["person"]): str(r["email"]) for r in self._db.query("SELECT * FROM contacts")}
+
+
+class SqliteProfileRepository:
+    """The one person this installation belongs to."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def get_name(self) -> str | None:
+        rows = self._db.query("SELECT name FROM profile WHERE id = 1")
+        return str(rows[0]["name"]) if rows else None
+
+    def set_name(self, name: str) -> None:
+        if not name:
+            self._db.execute("DELETE FROM profile WHERE id = 1")
+            return
+        self._db.execute(
+            "INSERT INTO profile (id, name) VALUES (1, ?)"
+            " ON CONFLICT(id) DO UPDATE SET name = excluded.name",
+            (name,),
+        )
 
 
 class SqliteAuditSink:

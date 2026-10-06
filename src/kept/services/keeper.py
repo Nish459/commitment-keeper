@@ -1,6 +1,7 @@
 """Does the work behind a promise: plan research, search, draft. Never sends anything."""
 
 import re
+from collections.abc import Callable
 from datetime import date
 
 from pydantic import BaseModel, Field
@@ -112,7 +113,7 @@ class KeeperService:
         *,
         max_queries: int = 3,
         max_results: int = 5,
-        signature: str = "",
+        signature: Callable[[], str] = lambda: "",
     ) -> None:
         self._llm = llm
         self._search = search
@@ -120,7 +121,7 @@ class KeeperService:
         self._drafts = drafts
         self._max_queries = max_queries
         self._max_results = max_results
-        self._signature = signature.strip()
+        self._signature = signature
 
     async def prepare(self, commitment_id: int, today: date) -> Draft:
         commitment = self._commitments.get(commitment_id)
@@ -138,7 +139,7 @@ class KeeperService:
         numbered = {i: r.url for i, r in enumerate(evidence, start=1)}
         cited = sorted({int(n) for n in _CITATION.findall(content.body)} & numbered.keys())
         sources = [numbered[n] for n in cited]
-        body = _sign(content.body, self._signature)
+        body = _sign(content.body, self._signature().strip())
         if sources:
             listing = "\n".join(f"[{n}] {numbered[n]}" for n in cited)
             body = f"{body}\n\nSources:\n{listing}"

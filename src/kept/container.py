@@ -15,6 +15,7 @@ from kept.adapters.sqlite import (
     SqliteCommitmentRepository,
     SqliteContactRepository,
     SqliteDraftRepository,
+    SqliteProfileRepository,
 )
 from kept.adapters.tavily import TavilySearch
 from kept.config import Settings
@@ -33,6 +34,7 @@ class Container:
     commitments: SqliteCommitmentRepository
     drafts: SqliteDraftRepository
     contacts: SqliteContactRepository
+    profile: SqliteProfileRepository
     extraction: ExtractionService
     keeper: KeeperService
     review: ReviewService
@@ -60,6 +62,7 @@ def build_container(
     commitments = SqliteCommitmentRepository(database)
     drafts = SqliteDraftRepository(database)
     contacts = SqliteContactRepository(database)
+    profile = SqliteProfileRepository(database)
     structured_llm = llm or LLMClient(settings, http)
     web_search = search or TavilySearch(settings.tavily_api_key.get_secret_value(), http)
     sender = email
@@ -80,9 +83,14 @@ def build_container(
         commitments=commitments,
         drafts=drafts,
         contacts=contacts,
+        profile=profile,
         extraction=ExtractionService(structured_llm, commitments),
         keeper=KeeperService(
-            structured_llm, web_search, commitments, drafts, signature=settings.user_name
+            structured_llm,
+            web_search,
+            commitments,
+            drafts,
+            signature=lambda: profile.get_name() or settings.user_name,
         ),
         review=ReviewService(
             commitments,
