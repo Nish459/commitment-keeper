@@ -239,7 +239,7 @@
   background: var(--col-bg);
 }
 .col.is-today {
-  --col-bg: var(--cobalt-wash);
+  --col-bg: var(--today-wash);
   border-left-color: transparent;
 }
 .col.is-today + .col {

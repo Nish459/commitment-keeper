@@ -51,6 +51,7 @@
   --cobalt-ink: #1a36ad; /* text and links on a surface */
   --cobalt-icon: #2347d8; /* icon and seal fills */
   --cobalt-wash: #e8edfc;
+  --today-wash: #e8edfc; /* the band behind today's column */
   --cobalt-wash-hover: #d6dffa;
   --cobalt-border: #c4d0f8;
   --on-cobalt: #ffffff;
@@ -111,41 +112,43 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --ink: #e6eaf3;
-  --muted: #9ba7bf;
-  --paper: #0d1322;
-  --surface: #151d33;
-  --line: #263149;
-  --line-strong: #3a4766;
-  --control-border: #6b7899;
-  --rule: #8f9bb5;
-  --placeholder: #8693ad;
+  /* Graphite: neutral greys with no colour cast, so the accent is the only colour on screen. */
+  --ink: #ececf0;
+  --muted: #a3a3ae;
+  --paper: #101012;
+  --surface: #1a1a1e;
+  --line: #2a2a31;
+  --line-strong: #3b3b44;
+  --control-border: #727280;
+  --rule: #9a9aa6;
+  --placeholder: #8b8b97;
   --hover: rgb(255 255 255 / 0.04);
   --hover-strong: rgb(255 255 255 / 0.1);
 
   --cobalt: #3d5cf0;
   --cobalt-strong: #3452e0;
-  --cobalt-ink: #9db1ff;
-  --cobalt-icon: #7b95ff;
-  --cobalt-wash: #1c2a57;
-  --cobalt-wash-hover: #263a78;
-  --cobalt-border: #2f438a;
+  --cobalt-ink: #a9b8ff;
+  --cobalt-icon: #8398ff;
+  --cobalt-wash: #232843;
+  --today-wash: #1d1d23;
+  --cobalt-wash-hover: #2d3458;
+  --cobalt-border: #343b63;
   --on-cobalt: #ffffff;
-  --focus: #8fa6ff;
+  --focus: #94a8ff;
   --kept: #3ecf9f;
-  --kept-wash: #123a30;
-  --seal: #ff7a80;
-  --seal-wash: #3d1b21;
-  --on-icon: #0d1322;
-  --spinner-track: rgb(143 166 255 / 0.25);
+  --kept-wash: #1a2b26;
+  --seal: #ff7b82;
+  --seal-wash: #2f1c20;
+  --on-icon: #101012;
+  --spinner-track: rgb(148 168 255 / 0.25);
 
-  --inverse: #e6eaf3;
-  --on-inverse: #0d1322;
-  --on-inverse-muted: #4a5670;
+  --inverse: #ececf0;
+  --on-inverse: #101012;
+  --on-inverse-muted: #4d4d58;
 
-  --bar-bg: #1a2440;
-  --bar-text: #f1f4fb;
-  --bar-muted: #aab5cc;
+  --bar-bg: #232328;
+  --bar-text: #f2f2f5;
+  --bar-muted: #b0b0bb;
   --bar-accent: #6fe0bd;
 
   --shadow-rgb: 0 0 0;

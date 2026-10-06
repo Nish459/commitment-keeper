@@ -29,7 +29,8 @@ function contrast(a: string, b: string): number {
 
 // [foreground, background]. Text needs 4.5:1 (WCAG AA). Controls, focus rings and icons need 3:1.
 const TEXT: [string, string][] = [
-  ["ink", "paper"], ["ink", "surface"], ["muted", "paper"], ["muted", "surface"],
+  ["ink", "paper"], ["ink", "surface"], ["ink", "today-wash"], ["muted", "today-wash"],
+  ["cobalt-ink", "today-wash"], ["muted", "paper"], ["muted", "surface"],
   ["cobalt-ink", "surface"], ["cobalt-ink", "paper"], ["cobalt-ink", "cobalt-wash"],
   ["kept", "surface"], ["kept", "kept-wash"], ["seal", "surface"], ["seal", "seal-wash"],
   ["on-cobalt", "cobalt"], ["on-cobalt", "cobalt-strong"],

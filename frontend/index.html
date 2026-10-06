@@ -14,7 +14,7 @@
           var saved = localStorage.getItem("kept-theme");
           var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
           document.documentElement.dataset.theme = dark ? "dark" : "light";
-          document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0d1322" : "#f3f5f7");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#101012" : "#f3f5f7");
         } catch (e) {}
       })();
     </script>
