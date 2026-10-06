@@ -39,7 +39,7 @@ Rules:
   original deadline.
 - If you need a detail to proceed (location, budget, headcount), ask {person} for it.
 - Keep it under 200 words, concise and professional.
-- End with just "Best," on its own line. Do not write a placeholder for my name.
+- Do not write a closing, sign-off or my name; the signature is added automatically.
 
 Reply with JSON only: {{"subject": "...", "body": "..."}}"""
 
@@ -54,6 +54,18 @@ _REPAIR_PROMPT = (
 )
 
 _CITATION = re.compile(r"\[(\d+)\]")
+# A trailing sign-off the model wrote anyway ("Best regards,", optionally followed by a name line).
+_SIGNOFF = re.compile(
+    r"(?:\s*\n)+\s*(?:best(?: regards)?|kind regards|regards|thanks|thank you|sincerely|cheers)"
+    r"[,!.]?[ \t]*(?:\n[^\n]{0,60})?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _sign(body: str, name: str) -> str:
+    """Replace any model-written closing with a deterministic one, so the name is never invented."""
+    closing = f"Best,\n{name}" if name else "Best,"
+    return f"{_SIGNOFF.sub('', body.strip())}\n\n{closing}"
 
 
 class KeeperError(Exception):
@@ -100,6 +112,7 @@ class KeeperService:
         *,
         max_queries: int = 3,
         max_results: int = 5,
+        signature: str = "",
     ) -> None:
         self._llm = llm
         self._search = search
@@ -107,6 +120,7 @@ class KeeperService:
         self._drafts = drafts
         self._max_queries = max_queries
         self._max_results = max_results
+        self._signature = signature.strip()
 
     async def prepare(self, commitment_id: int, today: date) -> Draft:
         commitment = self._commitments.get(commitment_id)
@@ -124,7 +138,7 @@ class KeeperService:
         numbered = {i: r.url for i, r in enumerate(evidence, start=1)}
         cited = sorted({int(n) for n in _CITATION.findall(content.body)} & numbered.keys())
         sources = [numbered[n] for n in cited]
-        body = content.body.strip()
+        body = _sign(content.body, self._signature)
         if sources:
             listing = "\n".join(f"[{n}] {numbered[n]}" for n in cited)
             body = f"{body}\n\nSources:\n{listing}"

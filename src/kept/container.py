@@ -81,7 +81,9 @@ def build_container(
         drafts=drafts,
         contacts=contacts,
         extraction=ExtractionService(structured_llm, commitments),
-        keeper=KeeperService(structured_llm, web_search, commitments, drafts),
+        keeper=KeeperService(
+            structured_llm, web_search, commitments, drafts, signature=settings.user_name
+        ),
         review=ReviewService(
             commitments,
             drafts,

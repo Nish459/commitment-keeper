@@ -63,7 +63,10 @@ class FakeSearch:
 
 
 def _setup(
-    llm: FakeLLM, search: FakeSearch, direction: Direction = Direction.OWED_BY_ME
+    llm: FakeLLM,
+    search: FakeSearch,
+    direction: Direction = Direction.OWED_BY_ME,
+    signature: str = "",
 ) -> tuple[KeeperService, SqliteCommitmentRepository, SqliteDraftRepository, int]:
     db = Database(":memory:")
     commitments = SqliteCommitmentRepository(db)
@@ -78,7 +81,8 @@ def _setup(
         )
     )
     assert saved.id is not None
-    return KeeperService(llm, search, commitments, drafts), commitments, drafts, saved.id
+    service = KeeperService(llm, search, commitments, drafts, signature=signature)
+    return service, commitments, drafts, saved.id
 
 
 ACME = SearchResult(title="Acme", url="https://acme.test", snippet="Acme sells widgets.")
@@ -135,7 +139,7 @@ async def test_prepare_without_research_needed_skips_search_and_citations() -> N
     service, _, _, cid = _setup(llm, search)
     draft = await service.prepare(cid, TODAY)
     assert draft.sources == []
-    assert draft.body == "Attached."
+    assert draft.body == "Attached.\n\nBest,"
     assert search.queries == []
     assert llm.draft_calls == 1
 
@@ -155,7 +159,7 @@ async def test_prompts_forbid_invented_details_commitments_and_placeholders() ->
     assert "Never add a location, date" in llm.plan_prompt
     assert "Never invent facts about me" in llm.last_system_prompt
     assert "Do not make new commitments" in llm.last_system_prompt
-    assert "Do not write a placeholder" in llm.last_system_prompt
+    assert "the signature is added automatically" in llm.last_system_prompt
 
 
 async def test_drafting_with_research_does_not_include_the_no_evidence_rule() -> None:
@@ -199,3 +203,37 @@ async def test_prepare_rejects_missing_and_inbound_commitments() -> None:
         await service.prepare(cid, TODAY)
     with pytest.raises(CommitmentNotFoundError):
         await service.prepare(999, TODAY)
+
+
+async def test_signature_is_appended_after_best_and_before_sources() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]), signature="Kanisha Agarwal")
+    draft = await service.prepare(cid, TODAY)
+    assert draft.body == (
+        "Acme sells widgets [1].\n\nBest,\nKanisha Agarwal\n\nSources:\n[1] https://acme.test"
+    )
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "Hello.\n\nBest regards,\n[Your Name]",
+        "Hello.\n\nBest,",
+        "Hello.\n\nKind regards,\nJohn Smith\n",
+        "Hello.\n\nThanks!",
+    ],
+)
+async def test_model_written_closings_are_replaced_not_duplicated(written: str) -> None:
+    llm = FakeLLM(ResearchPlan(queries=[]), DraftContent(subject="s", body=written))
+    service, _, _, cid = _setup(llm, FakeSearch(), signature="Kanisha Agarwal")
+    draft = await service.prepare(cid, TODAY)
+    assert draft.body == "Hello.\n\nBest,\nKanisha Agarwal"
+
+
+async def test_body_text_that_merely_contains_thanks_is_kept() -> None:
+    body = "Thanks to the team we shipped early.\nMore details below."
+    llm = FakeLLM(ResearchPlan(queries=[]), DraftContent(subject="s", body=body))
+    service, _, _, cid = _setup(llm, FakeSearch(), signature="Kanisha Agarwal")
+    draft = await service.prepare(cid, TODAY)
+    assert draft.body.startswith(body)
+    assert draft.body.endswith("Best,\nKanisha Agarwal")

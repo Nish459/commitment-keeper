@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     tavily_api_key: SecretStr = SecretStr("")
 
     db_path: Path = Path("data/kept.db")
+    # Appended to drafts after "Best,". Empty means just "Best,".
+    user_name: str = ""
     web_dir: Path = Path("frontend/dist")
 
     egress_allowlist: Annotated[list[str], NoDecode] = [
