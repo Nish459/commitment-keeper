@@ -28,6 +28,7 @@ export interface Draft {
 
 export interface Capabilities {
   email: { enabled: boolean; sender: string; recipients: string[] };
+  demo: boolean;
 }
 
 export interface AuditEvent {

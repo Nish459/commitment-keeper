@@ -981,3 +981,12 @@ tr.is-blocked td {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.demo-banner {
+  padding: var(--s-3) var(--s-4);
+  background: var(--cobalt-wash);
+  border: 1px solid #c4d0f8;
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-size: var(--step--1);
+}

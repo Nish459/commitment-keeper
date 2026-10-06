@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { commitment, draft, renderApp, TODAY } from "../testing";
 import { App } from "../App";
+import { DemoBanner } from "./DemoBanner";
 import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
 import { Ledger } from "./Ledger";
@@ -160,7 +161,7 @@ describe("Detail email sending", () => {
     selectedId: 1,
   };
   const emailOn = (recipients: string[]) => ({
-    capabilities: { email: { enabled: true, sender: "me@example.com", recipients } },
+    capabilities: { email: { enabled: true, sender: "me@example.com", recipients }, demo: false },
   });
 
   it("offers a plain Approve when email is not configured", () => {
@@ -254,5 +255,32 @@ describe("ProfileDialog", () => {
     await userEvent.type(input, "  Ada Lovelace ");
     await userEvent.click(screen.getByRole("button", { name: "Save name" }));
     expect(actions.saveProfile).toHaveBeenCalledWith("Ada Lovelace");
+  });
+});
+
+
+describe("Demo mode", () => {
+  const demo = { capabilities: { email: { enabled: false, sender: "", recipients: [] }, demo: true } };
+
+  it("tells visitors the workspace is private and temporary", () => {
+    renderApp(<DemoBanner />, demo);
+    expect(screen.getByText(/This is a demo workspace/)).toBeInTheDocument();
+    expect(screen.getByText(/Email sending is off/)).toBeInTheDocument();
+  });
+
+  it("shows nothing outside the demo", () => {
+    renderApp(<DemoBanner />);
+    expect(screen.queryByText(/demo workspace/)).not.toBeInTheDocument();
+  });
+
+  it("explains that sending is disabled in the demo instead of pointing at .env", () => {
+    renderApp(<Detail />, {
+      ...demo,
+      commitments: [commitment({ status: "ready_for_review" })],
+      drafts: [draft()],
+      selectedId: 1,
+    });
+    expect(screen.getByText(/Sending is turned off in the demo/)).toBeInTheDocument();
+    expect(screen.queryByText(/SMTP/)).not.toBeInTheDocument();
   });
 });

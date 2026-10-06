@@ -1,4 +1,5 @@
 import { Composer } from "./components/Composer";
+import { DemoBanner } from "./components/DemoBanner";
 import { Detail } from "./components/Detail";
 import { Hero } from "./components/Hero";
 import { Ledger } from "./components/Ledger";
@@ -33,6 +34,7 @@ export function App() {
         </div>
       </header>
       <main className="page">
+        <DemoBanner />
         <Hero />
         <Timeline />
         <div className="split">

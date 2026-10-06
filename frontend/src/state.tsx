@@ -44,7 +44,7 @@ export const initialState: State = {
   drafts: [],
   audit: [],
   allowlist: [],
-  capabilities: { email: { enabled: false, sender: "", recipients: [] } },
+  capabilities: { email: { enabled: false, sender: "", recipients: [] }, demo: false },
   contacts: {},
   profileName: "",
   profileOpen: false,
