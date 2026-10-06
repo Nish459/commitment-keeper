@@ -10,7 +10,7 @@ import {
 
 import { api } from "./api";
 import { plural, startOfToday } from "./format";
-import type { AuditEvent, Capabilities, Commitment, Draft } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft, WeekCheck } from "./types";
 
 export type FilterId = "open" | "ready" | "done" | "all";
 
@@ -29,6 +29,7 @@ export interface State {
   contacts: Record<string, string>;
   profileName: string;
   profileOpen: boolean;
+  weekCheck: WeekCheck | null;
   selectedId: number | null;
   filter: FilterId;
   busy: Record<string, true>;
@@ -48,6 +49,7 @@ export const initialState: State = {
   contacts: {},
   profileName: "",
   profileOpen: false,
+  weekCheck: null,
   selectedId: null,
   filter: "open",
   busy: {},
@@ -64,6 +66,7 @@ type Action =
   | { type: "contacts"; contacts: Record<string, string> }
   | { type: "profile"; name: string }
   | { type: "profileDialog"; open: boolean }
+  | { type: "weekCheck"; result: WeekCheck }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
   | { type: "busy"; key: string; value: boolean }
@@ -90,6 +93,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, contacts: action.contacts };
     case "profile":
       return { ...state, profileName: action.name };
+    case "weekCheck":
+      return { ...state, weekCheck: action.result };
     case "profileDialog":
       return { ...state, profileOpen: action.open };
     case "select":
@@ -128,6 +133,7 @@ export interface Actions {
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number) => Promise<void>;
   sweep: () => Promise<void>;
+  checkWeek: () => Promise<void>;
   saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
   approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
@@ -232,6 +238,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         await refresh().catch(() => undefined);
       },
+
+      checkWeek: () =>
+        withBusy("week", async () => {
+          try {
+            dispatch({ type: "weekCheck", result: await api.weekCheck() });
+          } catch (error) {
+            toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          }
+        }),
 
       sweep: () =>
         withBusy("sweep", async () => {

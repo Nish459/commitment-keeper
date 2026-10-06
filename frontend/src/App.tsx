@@ -7,6 +7,7 @@ import { Perimeter } from "./components/Perimeter";
 import { ProfileDialog } from "./components/ProfileDialog";
 import { Timeline } from "./components/Timeline";
 import { Toasts } from "./components/Toasts";
+import { WeekCheckPanel } from "./components/WeekCheckPanel";
 import { useApp } from "./state";
 
 export function App() {
@@ -37,6 +38,7 @@ export function App() {
         <DemoBanner />
         <Hero />
         <Timeline />
+        <WeekCheckPanel />
         <div className="split">
           <Ledger />
           <Detail />

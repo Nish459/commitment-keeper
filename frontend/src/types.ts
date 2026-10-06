@@ -48,3 +48,17 @@ export interface SweepResult {
   skipped: number;
   stopped: string | null;
 }
+
+export interface Concern {
+  commitment_ids: number[];
+  title: string;
+  explanation: string;
+  severity: "high" | "medium" | "low";
+}
+
+export interface WeekCheck {
+  summary: string;
+  concerns: Concern[];
+  suggested_order: { commitment_id: number; reason: string }[];
+  model_used: string | null;
+}

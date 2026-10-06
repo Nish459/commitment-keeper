@@ -1,4 +1,4 @@
-import type { AuditEvent, Capabilities, Commitment, Draft, SweepResult } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft, SweepResult, WeekCheck } from "./types";
 
 export class ApiError extends Error {}
 
@@ -43,6 +43,7 @@ export const api = {
   ingest: (sourceId: string, text: string) =>
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
   sweep: () => post<SweepResult>("/api/sweep"),
+  weekCheck: () => post<WeekCheck>("/api/week-check"),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
   updateDraft: (draftId: number, subject: string, body: string) =>
     put<Draft>(`/api/drafts/${draftId}`, { subject, body }),

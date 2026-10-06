@@ -7,6 +7,7 @@ import { App } from "../App";
 import { DemoBanner } from "./DemoBanner";
 import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
+import { WeekCheckPanel } from "./WeekCheckPanel";
 import { Ledger } from "./Ledger";
 import { ProfileDialog } from "./ProfileDialog";
 import { DraftBody } from "./RichText";
@@ -332,5 +333,73 @@ describe("Demo mode", () => {
     });
     expect(screen.getByText(/Sending is turned off in the demo/)).toBeInTheDocument();
     expect(screen.queryByText(/SMTP/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe("WeekCheckPanel", () => {
+  const two = [
+    commitment({ id: 1, description: "Send the comparison" }),
+    commitment({ id: 2, person: "Marcus", description: "Review the doc", due: "2026-10-12" }),
+  ];
+  const result = {
+    summary: "A busy Friday.",
+    concerns: [
+      {
+        commitment_ids: [1, 2, 404],
+        title: "Friday crunch",
+        explanation: "Two things land together.",
+        severity: "high" as const,
+      },
+    ],
+    suggested_order: [
+      { commitment_id: 2, reason: "Quick win first" },
+      { commitment_id: 1, reason: "Then the big one" },
+    ],
+    model_used: "Nemotron 3 Ultra",
+  };
+
+  it("stays hidden until there are at least two open promises", () => {
+    renderApp(<WeekCheckPanel />, { commitments: [two[0]!] });
+    expect(screen.queryByRole("heading", { name: "Week check" })).not.toBeInTheDocument();
+  });
+
+  it("invites a check and asks Ultra when clicked", async () => {
+    const { actions } = renderApp(<WeekCheckPanel />, { commitments: two });
+    await userEvent.click(screen.getByRole("button", { name: "Check my week" }));
+    expect(actions.checkWeek).toHaveBeenCalled();
+  });
+
+  it("shows progress while Ultra works", () => {
+    renderApp(<WeekCheckPanel />, { commitments: two, busy: { week: true } });
+    expect(screen.getByText(/Nemotron Ultra is reading/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reading your week…" })).toBeDisabled();
+  });
+
+  it("renders concerns, an ordered plan and credit, and links back to real promises only", async () => {
+    const { actions } = renderApp(<WeekCheckPanel />, { commitments: two, weekCheck: result });
+    expect(screen.getByText("A busy Friday.")).toBeInTheDocument();
+    expect(screen.getByText("High risk")).toBeInTheDocument();
+    expect(screen.getByText("Friday crunch")).toBeInTheDocument();
+    expect(screen.getByText(/Reasoned by Nemotron 3 Ultra/)).toBeInTheDocument();
+
+    const steps = within(screen.getByRole("list", { name: "Suggested order" })).getAllByRole("listitem");
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "Marcus: Review the docQuick win first",
+      "Priya: Send the comparisonThen the big one",
+    ]);
+
+    await userEvent.click(within(steps[0]!).getByRole("button", { name: /Marcus: Review the doc/ }));
+    expect(actions.select).toHaveBeenCalledWith(2, { scroll: true });
+    expect(screen.queryByText(/404/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
+  it("says plainly when nothing is wrong", () => {
+    renderApp(<WeekCheckPanel />, {
+      commitments: two,
+      weekCheck: { ...result, concerns: [], suggested_order: [] },
+    });
+    expect(screen.getByRole("heading", { name: "Nothing to worry about" })).toBeInTheDocument();
   });
 });

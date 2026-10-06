@@ -21,6 +21,7 @@ export function makeActions(): Actions {
     dismissToast: vi.fn(),
     prepare: vi.fn().mockResolvedValue(undefined),
     sweep: vi.fn().mockResolvedValue(undefined),
+    checkWeek: vi.fn().mockResolvedValue(undefined),
     saveDraft: vi.fn().mockResolvedValue(true),
     approve: vi.fn().mockResolvedValue(undefined),
     reject: vi.fn().mockResolvedValue(undefined),
