@@ -5,7 +5,16 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from kept.container import Container
 from kept.demo import COOKIE_NAME, SessionManager
-from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Draft, DraftStatus
+from kept.domain.models import (
+    AuditEvent,
+    Commitment,
+    CommitmentStatus,
+    Draft,
+    DraftStatus,
+    utcnow,
+)
+from kept.services.calendar import build_ics
+from kept.services.keeper import CommitmentNotFoundError
 from kept.services.sweep import SweepResult
 
 router = APIRouter(prefix="/api")
@@ -49,6 +58,19 @@ async def ingest_note(note: NoteIn, c: Deps) -> list[Commitment]:
 @router.get("/commitments")
 def list_commitments(c: Deps, status: CommitmentStatus | None = None) -> list[Commitment]:
     return c.commitments.list(status)
+
+
+@router.get("/commitments/{commitment_id}/calendar.ics")
+def calendar(commitment_id: int, c: Deps) -> Response:
+    """A calendar file for a promise's deadline, ready to import into any calendar app."""
+    commitment = c.commitments.get(commitment_id)
+    if commitment is None:
+        raise CommitmentNotFoundError(f"Commitment {commitment_id} not found")
+    return Response(
+        build_ics(commitment, utcnow()),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="promise-{commitment_id}.ics"'},
+    )
 
 
 @router.post("/commitments/{commitment_id}/prepare")

@@ -7,7 +7,7 @@ import pytest
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.demo import COOKIE_NAME, SessionManager, build_session_manager
-from tests.test_api import NOTE, FakeSearch, ScriptedLLM
+from tests.fakes import NOTE, FakeSearch, ScriptedLLM
 
 TODAY = date(2026, 10, 7)  # a Wednesday
 

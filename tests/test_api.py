@@ -1,81 +1,13 @@
-from collections.abc import AsyncIterator
-from datetime import date
 from pathlib import Path
-from typing import Any
 
 import httpx
-import pytest
-from pydantic import BaseModel
 
 from kept.adapters.llm import LLMOutputError
 from kept.adapters.sqlite import Database
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.container import build_container
-from kept.domain.errors import EmailError, SearchError
-from kept.domain.models import Direction, SearchResult, Tier
-from kept.services.extraction import ExtractedCommitment, ExtractionResult
-from kept.services.keeper import DraftContent, ResearchPlan
-
-NOTE = "I'll send Priya the competitor comparison by Friday."
-
-
-class ScriptedLLM:
-    def __init__(self) -> None:
-        self.responses: dict[type[BaseModel], BaseModel] = {
-            ExtractionResult: ExtractionResult(
-                commitments=[
-                    ExtractedCommitment(
-                        direction=Direction.OWED_BY_ME,
-                        person="Priya",
-                        description="Send competitor comparison",
-                        due_phrase="by Friday",
-                        source_quote="I'll send Priya the competitor comparison by Friday",
-                    )
-                ]
-            ),
-            ResearchPlan: ResearchPlan(queries=["competitors"]),
-            DraftContent: DraftContent(subject="Comparison", body="Here it is [1]."),
-        }
-        self.error: Exception | None = None
-
-    async def complete_json[T: BaseModel](
-        self,
-        tier: Tier,
-        messages: list[dict[str, str]],
-        schema: type[T],
-        **kwargs: Any,
-    ) -> T:
-        if self.error is not None:
-            raise self.error
-        return schema.model_validate(self.responses[schema].model_dump())
-
-
-class FakeSearch:
-    fail = False
-
-    async def search(self, query: str, max_results: int = 5) -> list[SearchResult]:
-        if self.fail:
-            raise SearchError("down")
-        return [SearchResult(title="A", url="https://a.test", snippet="facts")]
-
-
-@pytest.fixture
-async def env() -> AsyncIterator[tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch]]:
-    llm, search = ScriptedLLM(), FakeSearch()
-    container = build_container(
-        Settings(_env_file=None),
-        llm=llm,
-        search=search,
-        db=Database(":memory:"),
-        today=lambda: date(2026, 10, 7),
-    )
-    app = create_app(container)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        yield client, llm, search
-    await container.aclose()
+from tests.fakes import NOTE, FakeSearch, FakeSender, ScriptedLLM
 
 
 async def test_full_flow_ingest_prepare_approve(
@@ -158,39 +90,6 @@ async def test_web_ui_is_served_from_web_dir(tmp_path: Path) -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         assert "<h1>Kept</h1>" in (await client.get("/")).text
         assert (await client.get("/health")).status_code == 200
-    await container.aclose()
-
-
-class FakeSender:
-    def __init__(self) -> None:
-        self.sent: list[str] = []
-        self.fail = False
-
-    async def send(self, to: str, subject: str, body: str) -> None:
-        if self.fail:
-            raise EmailError("Sending failed: refused")
-        self.sent.append(to)
-
-
-@pytest.fixture
-async def email_env() -> AsyncIterator[tuple[httpx.AsyncClient, FakeSender]]:
-    sender = FakeSender()
-    container = build_container(
-        Settings(
-            _env_file=None,
-            smtp_host="smtp.example.com",
-            email_from="me@example.com",
-            email_allowed_recipients=["priya@acme.com"],
-        ),
-        llm=ScriptedLLM(),
-        search=FakeSearch(),
-        db=Database(":memory:"),
-        email=sender,
-        today=lambda: date(2026, 10, 7),
-    )
-    transport = httpx.ASGITransport(app=create_app(container))
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client, sender
     await container.aclose()
 
 

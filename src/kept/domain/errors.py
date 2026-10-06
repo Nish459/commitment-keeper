@@ -16,3 +16,7 @@ class RecipientNotAllowedError(EmailError):
 
 class DemoLimitError(Exception):
     """A demo workspace used up its allowance, or the server is busy."""
+
+
+class NoDueDateError(Exception):
+    """The promise has no deadline, so there is nothing to put on a calendar."""

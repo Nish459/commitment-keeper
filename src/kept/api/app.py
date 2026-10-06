@@ -16,6 +16,7 @@ from kept.domain.errors import (
     DemoLimitError,
     EmailError,
     EmailNotConfiguredError,
+    NoDueDateError,
     RecipientNotAllowedError,
     SearchError,
 )
@@ -33,6 +34,7 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     UngroundedDraftError: 502,
     DemoLimitError: 429,
     EmailNotConfiguredError: 409,
+    NoDueDateError: 409,
     RecipientNotAllowedError: 403,
     EmailError: 502,
     LLMError: 502,
