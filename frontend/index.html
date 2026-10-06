@@ -5,7 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kept</title>
     <meta name="description" content="A private assistant that tracks your promises and does the work behind them." />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f3f5f7" />
+    <script>
+      // Pick the theme before first paint so there is no flash. Mirrors src/theme.ts.
+      (function () {
+        try {
+          var saved = localStorage.getItem("kept-theme");
+          var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0d1322" : "#f3f5f7");
+        } catch (e) {}
+      })();
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%232347d8'/%3E%3Ccircle cx='8' cy='8' r='3.2' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E"

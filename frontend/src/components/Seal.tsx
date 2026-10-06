@@ -19,7 +19,7 @@ const SHAPES: Record<CommitmentStatus, React.ReactNode> = {
   ready_for_review: (
     <>
       <circle cx="8" cy="8" r="7" fill="currentColor" />
-      <circle cx="8" cy="8" r="3.2" fill="none" stroke="#fff" strokeWidth="1.5" />
+      <circle className="seal-ink" cx="8" cy="8" r="3.2" fill="none" strokeWidth="1.5" />
     </>
   ),
   done: (
@@ -28,7 +28,7 @@ const SHAPES: Record<CommitmentStatus, React.ReactNode> = {
       <path
         d="M4.8 8.3 7 10.4l4.2-4.8"
         fill="none"
-        stroke="#fff"
+        className="seal-ink"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"

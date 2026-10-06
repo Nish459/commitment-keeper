@@ -30,21 +30,52 @@
 }
 
 :root {
-  /* Color: a notary's palette. Ink for the line, cobalt for actions, seals for state. */
+  color-scheme: light;
+
+  /* Surfaces and text. --ink is the foreground color, not a fixed navy: it flips in dark. */
   --ink: #14213d;
   --muted: #566178;
   --paper: #f3f5f7;
   --surface: #ffffff;
   --line: #d7dde5;
-  --line-strong: #b4bdcb;
+  --line-strong: #b4bdcb; /* decorative separators */
+  --control-border: #7c879b; /* borders of inputs and buttons: 3:1 against the surface */
+  --rule: #14213d; /* heavy 2px rules and the due-date axis */
+  --placeholder: #5f6a83;
+  --hover: rgb(255 255 255 / 0.6);
+  --hover-strong: rgb(20 33 61 / 0.08);
 
-  --cobalt: #2347d8;
-  --cobalt-ink: #1a36ad;
+  /* Accent: cobalt for actions, seals for state. */
+  --cobalt: #2347d8; /* fills that carry white text (buttons) */
+  --cobalt-strong: #1a36ad; /* hover fill */
+  --cobalt-ink: #1a36ad; /* text and links on a surface */
+  --cobalt-icon: #2347d8; /* icon and seal fills */
   --cobalt-wash: #e8edfc;
+  --cobalt-wash-hover: #d6dffa;
+  --cobalt-border: #c4d0f8;
+  --on-cobalt: #ffffff;
+  --focus: #2347d8;
   --kept: #177a61;
   --kept-wash: #e2f2ec;
   --seal: #c4262e;
   --seal-wash: #fbe9ea;
+  --on-icon: #ffffff; /* the mark drawn inside a filled seal */
+  --spinner-track: rgb(35 71 216 / 0.25);
+
+  /* Inverted blocks: the active filter chip, the skip link. */
+  --inverse: #14213d;
+  --on-inverse: #f3f5f7;
+  --on-inverse-muted: #b8c2d6;
+
+  /* The perimeter bar and toasts. */
+  --bar-bg: #14213d;
+  --bar-text: #ffffff;
+  --bar-muted: #c9d2e3;
+  --bar-accent: #8fd5bf;
+
+  --shadow-rgb: 20 33 61;
+  --lift: 0 1px 0 rgb(var(--shadow-rgb) / 0.04), 0 18px 40px -22px rgb(var(--shadow-rgb) / 0.35);
+  --backdrop: rgb(var(--shadow-rgb) / 0.5);
 
   /* Type */
   --font-display: "Bricolage Grotesque", ui-rounded, "Avenir Next", system-ui, sans-serif;
@@ -71,8 +102,53 @@
   --r-md: 10px;
   --r-lg: 14px;
 
-  --lift: 0 1px 0 rgb(20 33 61 / 0.04), 0 18px 40px -22px rgb(20 33 61 / 0.35);
   --perimeter-h: 3rem;
   --gutter: clamp(1rem, 4vw, 2.5rem);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Dark theme: only the colors change. Set on <html> by theme.ts, before first paint. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink: #e6eaf3;
+  --muted: #9ba7bf;
+  --paper: #0d1322;
+  --surface: #151d33;
+  --line: #263149;
+  --line-strong: #3a4766;
+  --control-border: #6b7899;
+  --rule: #8f9bb5;
+  --placeholder: #8693ad;
+  --hover: rgb(255 255 255 / 0.04);
+  --hover-strong: rgb(255 255 255 / 0.1);
+
+  --cobalt: #3d5cf0;
+  --cobalt-strong: #3452e0;
+  --cobalt-ink: #9db1ff;
+  --cobalt-icon: #7b95ff;
+  --cobalt-wash: #1c2a57;
+  --cobalt-wash-hover: #263a78;
+  --cobalt-border: #2f438a;
+  --on-cobalt: #ffffff;
+  --focus: #8fa6ff;
+  --kept: #3ecf9f;
+  --kept-wash: #123a30;
+  --seal: #ff7a80;
+  --seal-wash: #3d1b21;
+  --on-icon: #0d1322;
+  --spinner-track: rgb(143 166 255 / 0.25);
+
+  --inverse: #e6eaf3;
+  --on-inverse: #0d1322;
+  --on-inverse-muted: #4a5670;
+
+  --bar-bg: #1a2440;
+  --bar-text: #f1f4fb;
+  --bar-muted: #aab5cc;
+  --bar-accent: #6fe0bd;
+
+  --shadow-rgb: 0 0 0;
+  --lift: 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -22px rgb(var(--shadow-rgb) / 0.7);
+  --backdrop: rgb(var(--shadow-rgb) / 0.65);
 }
