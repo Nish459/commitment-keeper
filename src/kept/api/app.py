@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from kept import __version__
 from kept.adapters.llm import LLMError
 from kept.api.routes import router
-from kept.config import get_settings
+from kept.config import Settings, get_settings
 from kept.container import Container, build_container
+from kept.demo import SessionManager, build_session_manager
 from kept.domain.errors import (
+    DemoLimitError,
     EmailError,
     EmailNotConfiguredError,
     RecipientNotAllowedError,
@@ -29,6 +31,7 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     DraftAlreadyReviewedError: 409,
     SearchError: 502,
     UngroundedDraftError: 502,
+    DemoLimitError: 429,
     EmailNotConfiguredError: 409,
     RecipientNotAllowedError: 403,
     EmailError: 502,
@@ -36,40 +39,56 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
 }
 
 
-def create_app(container: Container | None = None) -> FastAPI:
+def create_app(
+    container: Container | None = None,
+    *,
+    sessions: SessionManager | None = None,
+    settings: Settings | None = None,
+) -> FastAPI:
+    config = settings or (container.settings if container else get_settings())
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        owned = container is None
-        if owned:
-            logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-        app.state.container = container or build_container(get_settings())
-        settings = app.state.container.settings
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+        owned_sessions = sessions
+        owned_container = container
+        if container is None and sessions is None:
+            if config.demo_mode:
+                owned_sessions = build_session_manager(config)
+            else:
+                owned_container = build_container(config)
+        app.state.sessions = owned_sessions
+        app.state.container = owned_container
         logger.info(
-            "models nano=%s super=%s ultra=%s",
-            settings.model_nano,
-            settings.model_super,
-            settings.model_ultra,
+            "models nano=%s super=%s ultra=%s%s",
+            config.model_nano,
+            config.model_super,
+            config.model_ultra,
+            " (demo mode: isolated workspaces, email off)" if config.demo_mode else "",
         )
         try:
             yield
         finally:
-            if owned:
-                await app.state.container.aclose()
+            if container is None and sessions is None:
+                if owned_sessions:
+                    await owned_sessions.aclose()
+                if owned_container:
+                    await owned_container.aclose()
 
     app = FastAPI(title="Kept", version=__version__, lifespan=lifespan)
-    if container is not None:
-        app.state.container = container
+    # Set eagerly so apps used without running the lifespan (tests) still work.
+    app.state.container = container
+    app.state.sessions = sessions
     app.include_router(router)
 
     @app.get("/health")
-    def health(request: Request) -> dict[str, object]:
+    def health() -> dict[str, object]:
         """Liveness plus which credentials are configured (never their values)."""
-        settings = request.app.state.container.settings
         return {
             "status": "ok",
             "version": __version__,
-            "nebius_key_set": bool(settings.nebius_api_key.get_secret_value()),
-            "tavily_key_set": bool(settings.tavily_api_key.get_secret_value()),
+            "nebius_key_set": bool(config.nebius_api_key.get_secret_value()),
+            "tavily_key_set": bool(config.tavily_api_key.get_secret_value()),
         }
 
     def _handle(_: Request, exc: Exception) -> JSONResponse:
@@ -81,7 +100,6 @@ def create_app(container: Container | None = None) -> FastAPI:
     for error_type in _STATUS_BY_ERROR:
         app.add_exception_handler(error_type, _handle)
 
-    web_dir = (container.settings if container else get_settings()).web_dir
-    if web_dir.is_dir():
-        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+    if config.web_dir.is_dir():
+        app.mount("/", StaticFiles(directory=config.web_dir, html=True), name="web")
     return app

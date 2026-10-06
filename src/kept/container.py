@@ -1,8 +1,10 @@
 """Composition root: the only place concrete adapters are wired to services."""
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
 from datetime import date
+from typing import TYPE_CHECKING
 
 import httpx
 
@@ -24,6 +26,9 @@ from kept.services.extraction import ExtractionService
 from kept.services.keeper import KeeperService
 from kept.services.review import ReviewService
 
+if TYPE_CHECKING:
+    from kept.demo import DemoGuard
+
 
 @dataclass
 class Container:
@@ -39,6 +44,11 @@ class Container:
     keeper: KeeperService
     review: ReviewService
     today: Callable[[], date]
+    guard: "DemoGuard | None" = None
+
+    def guarded(self, kind: str, size: int = 0) -> AbstractAsyncContextManager[None]:
+        """Costly actions run inside this; in demo mode it enforces the workspace's allowance."""
+        return self.guard.run(kind, size) if self.guard else nullcontext()
 
     async def aclose(self) -> None:
         await self.http.aclose()
@@ -54,6 +64,7 @@ def build_container(
     email: EmailSender | None = None,
     inner_transport: httpx.AsyncBaseTransport | None = None,
     today: Callable[[], date] = date.today,
+    guard: "DemoGuard | None" = None,
 ) -> Container:
     """Overrides exist so tests can swap the model, search and network without patching."""
     database = db or Database(settings.db_path)
@@ -101,4 +112,5 @@ def build_container(
             allowed_recipients=settings.email_allowed_recipients,
         ),
         today=today,
+        guard=guard,
     )

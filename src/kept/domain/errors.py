@@ -12,3 +12,7 @@ class EmailNotConfiguredError(EmailError):
 
 class RecipientNotAllowedError(EmailError):
     """The recipient is not on the allowed list."""
+
+
+class DemoLimitError(Exception):
+    """A demo workspace used up its allowance, or the server is busy."""

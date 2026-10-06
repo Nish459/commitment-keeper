@@ -30,6 +30,15 @@ class Settings(BaseSettings):
         "api.tavily.com",
     ]
 
+    # Demo mode: every visitor gets a private, temporary workspace; email is forced off.
+    demo_mode: bool = False
+    demo_max_sessions: int = 200
+    demo_session_minutes: int = 120
+    demo_max_notes: int = 5
+    demo_max_drafts: int = 10
+    demo_max_concurrent: int = 4
+    demo_max_note_chars: int = 4000
+
     # Outbound email. Off unless smtp_host and email_from are set.
     smtp_host: str = ""
     smtp_port: int = 587

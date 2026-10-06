@@ -1,17 +1,33 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field, StringConstraints
 
 from kept.container import Container
+from kept.demo import COOKIE_NAME, SessionManager
 from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Draft, DraftStatus
 
 router = APIRouter(prefix="/api")
 
 
-def get_container(request: Request) -> Container:
-    container: Container = request.app.state.container
-    return container
+async def get_container(request: Request, response: Response) -> Container:
+    """The workspace for this request: the single one, or this visitor's own in demo mode."""
+    sessions: SessionManager | None = request.app.state.sessions
+    if sessions is None:
+        container: Container = request.app.state.container
+        return container
+    await sessions.reap()
+    session_id, workspace, _ = sessions.get_or_create(request.cookies.get(COOKIE_NAME))
+    response.set_cookie(
+        COOKIE_NAME,
+        session_id,
+        max_age=workspace.settings.demo_session_minutes * 60,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+    return workspace
 
 
 Deps = Annotated[Container, Depends(get_container)]
@@ -25,7 +41,8 @@ class NoteIn(BaseModel):
 @router.post("/notes")
 async def ingest_note(note: NoteIn, c: Deps) -> list[Commitment]:
     """Extract and store the commitments found in a note."""
-    return await c.extraction.extract(note.source_id, note.text, c.today())
+    async with c.guarded("notes", len(note.text)):
+        return await c.extraction.extract(note.source_id, note.text, c.today())
 
 
 @router.get("/commitments")
@@ -36,7 +53,8 @@ def list_commitments(c: Deps, status: CommitmentStatus | None = None) -> list[Co
 @router.post("/commitments/{commitment_id}/prepare")
 async def prepare(commitment_id: int, c: Deps) -> Draft:
     """Research and draft the deliverable for a promise I made."""
-    return await c.keeper.prepare(commitment_id, c.today())
+    async with c.guarded("drafts"):
+        return await c.keeper.prepare(commitment_id, c.today())
 
 
 @router.get("/drafts")
@@ -96,6 +114,7 @@ class EmailCapability(BaseModel):
 
 class Capabilities(BaseModel):
     email: EmailCapability
+    demo: bool
 
 
 @router.get("/capabilities")
@@ -106,7 +125,8 @@ def capabilities(c: Deps) -> Capabilities:
             enabled=s.email_enabled,
             sender=s.email_from if s.email_enabled else "",
             recipients=(s.email_allowed_recipients or [s.email_from]) if s.email_enabled else [],
-        )
+        ),
+        demo=s.demo_mode,
     )
 
 
