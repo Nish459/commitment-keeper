@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { commitment, draft, renderApp, TODAY } from "../testing";
-import { Detail } from "./Detail";
+import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
 import { Ledger } from "./Ledger";
 import { DraftBody } from "./RichText";
@@ -27,7 +27,7 @@ describe("Hero", () => {
 
   it("offers to prepare the next promise when nothing is ready", async () => {
     const { actions } = renderApp(<Hero />, { commitments: [commitment()] });
-    expect(screen.getByRole("heading").textContent).toMatch(/^Next up: send the comparison, due fri\.$/);
+    expect(screen.getByRole("heading")).toHaveTextContent("Next up for Priya: Send the comparison. Due Fri.");
     await userEvent.click(screen.getByRole("button", { name: "Research and draft" }));
     expect(actions.prepare).toHaveBeenCalledWith(1);
   });
@@ -173,5 +173,13 @@ describe("DraftBody", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getAllByRole("link", { name: "Source 1" })[0]).toHaveAttribute("href", "#src-1");
     expect(document.querySelector("img")).toBeNull();
+  });
+});
+
+
+describe("quoteText", () => {
+  it("marks mid-sentence excerpts with an ellipsis and leaves full sentences alone", () => {
+    expect(quoteText("she will share the deck by Wednesday.")).toBe("…she will share the deck by Wednesday.");
+    expect(quoteText("I will send it by Friday.")).toBe("I will send it by Friday.");
   });
 });

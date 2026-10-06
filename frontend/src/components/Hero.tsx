@@ -59,7 +59,8 @@ export function Hero() {
   } else if (overdue.length) {
     headline = `${plural(overdue.length, "promise")} overdue.`;
   } else if (next) {
-    headline = `Next up: ${shorten(next.description, 72)}, ${dueLabel(next.due, today).toLowerCase()}.`;
+    const task = shorten(next.description, 72).replace(/[.!]+$/, "");
+    headline = `Next up for ${next.person}: ${task}. ${dueLabel(next.due, today)}.`;
   } else {
     headline = "Nothing is due soon.";
   }

@@ -7,6 +7,9 @@ import type { Commitment, Draft } from "../types";
 import { DraftBody } from "./RichText";
 import { Seal, SEAL_LABEL } from "./Seal";
 
+/** Quotes are verbatim, so a mid-sentence excerpt gets an ellipsis instead of a capital letter. */
+export const quoteText = (quote: string) => (/^[a-z]/.test(quote) ? `…${quote}` : quote);
+
 function DraftView({ draft, person }: { draft: Draft; person: string }) {
   const { state, actions } = useApp();
   const { email } = state.capabilities;
@@ -157,7 +160,7 @@ export function Detail() {
             </p>
           </header>
           <figure className="provenance">
-            <blockquote>{c.source_quote}</blockquote>
+            <blockquote>{quoteText(c.source_quote)}</blockquote>
             <figcaption>From {c.source_id}</figcaption>
           </figure>
           <WorkArea c={c} draft={latestDraft(state.drafts, c.id)} />

@@ -29,7 +29,7 @@ export function commitment(overrides: Partial<Commitment> = {}): Commitment {
     id: 1,
     direction: "owed_by_me",
     person: "Priya",
-    description: "send the comparison",
+    description: "Send the comparison",
     due: "2026-10-09",
     status: "open",
     source_id: "standup",
