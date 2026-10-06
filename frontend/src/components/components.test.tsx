@@ -293,6 +293,12 @@ describe("App header profile", () => {
     expect(screen.getByRole("button", { name: "Add your name" })).toBeInTheDocument();
   });
 
+  it("opens the add dialog from the header button", async () => {
+    const { actions } = renderApp(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Add promises" }));
+    expect(actions.openComposer).toHaveBeenCalledWith();
+  });
+
   it("opens the name dialog from the header", async () => {
     const { actions } = renderApp(<App />, { profileName: "Ada Lovelace" });
     await userEvent.click(screen.getByRole("button", { name: "Signing as Ada Lovelace" }));
@@ -485,6 +491,22 @@ describe("Composer: adding a promise by hand", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The demo's allowance is used up.");
     expect(actions.closeComposer).not.toHaveBeenCalled();
+  });
+
+  it("makes only the selected tab reachable by Tab and moves between tabs with the arrow keys", async () => {
+    renderApp(<Composer />, { composer: { open: true, sample: false, mode: "notes" } });
+    const notes = screen.getByRole("tab", { name: "Paste notes" });
+    const hand = screen.getByRole("tab", { name: "Add one by hand" });
+    expect([notes.tabIndex, hand.tabIndex]).toEqual([0, -1]);
+
+    notes.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(hand).toHaveAttribute("aria-selected", "true");
+    expect(hand).toHaveFocus();
+    expect([notes.tabIndex, hand.tabIndex]).toEqual([-1, 0]);
+
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(notes).toHaveAttribute("aria-selected", "true");
   });
 
   it("switches between pasting notes and adding by hand", async () => {

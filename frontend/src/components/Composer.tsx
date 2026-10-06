@@ -95,7 +95,18 @@ export function Composer() {
       <div className="composer-form">
         <h2 id="composer-title">Add promises</h2>
 
-        <div className="tabs" role="tablist" aria-label="How to add">
+        <div
+          className="tabs"
+          role="tablist"
+          aria-label="How to add"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+            event.preventDefault();
+            const next = mode === "notes" ? "hand" : "notes";
+            switchTo(next);
+            document.getElementById(`tab-${next}`)?.focus();
+          }}
+        >
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -104,6 +115,7 @@ export function Composer() {
               type="button"
               className="tab"
               aria-selected={mode === tab.id}
+              tabIndex={mode === tab.id ? 0 : -1}
               aria-controls={`panel-${tab.id}`}
               disabled={busy}
               onClick={() => switchTo(tab.id)}

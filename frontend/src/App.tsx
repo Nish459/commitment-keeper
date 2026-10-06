@@ -30,7 +30,7 @@ export function App() {
             {state.profileName ? `Signing as ${state.profileName}` : "Add your name"}
           </button>
           <button className="btn btn-primary" type="button" onClick={() => actions.openComposer()}>
-            Add notes
+            Add promises
           </button>
         </div>
       </header>
