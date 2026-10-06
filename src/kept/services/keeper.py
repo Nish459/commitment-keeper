@@ -3,6 +3,7 @@
 import re
 from collections.abc import Callable
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,13 +21,34 @@ from kept.domain.ports import CommitmentRepository, DraftRepository, StructuredL
 
 _SNIPPET_LIMIT = 1200
 
-_PLAN_PROMPT = """You help me keep a promise I made. Decide what web research is needed to
-fulfil it. Reply with JSON only: {"queries": ["<search query>", ...]}.
-Research whenever the promise involves finding, comparing, choosing or booking something (venues,
-vendors, tools, prices, options, facts). Use at most {max_queries} focused queries. Return an empty
-list only when nothing needs looking up, such as sending a file I already have.
+_PLAN_PROMPT = """You help me keep a promise I made. First decide what kind of promise it is, then
+what web research it needs. Reply with JSON only:
+{"kind": "research" | "send_file" | "other", "queries": ["<search query>", ...]}
+
+kind:
+- "send_file": I promised to send, share or forward something I already have or own: a document,
+  deck, roadmap, report, file or link ("send the Q4 roadmap", "share the contract"). No queries.
+- "research": I promised information, analysis, a comparison or options that can be gathered from
+  the web ("compare vendors", "find venues", "summarize the new release").
+- "other": anything else (book, call, review, decide, pay, follow up).
+
+queries: at most {max_queries} focused queries for "research" and "other" promises that involve
+finding, comparing, choosing or booking something. Empty for "send_file".
 Use only details that appear in the promise or my original words. Never add a location, date,
 name, budget or headcount of your own. If a key detail is missing, search generically."""
+
+_SEND_FILE_PROMPT = """You write a short cover email for a promise I made to send something I
+already have: {description}. Write it as a ready-to-send email from me to {person}.
+Today is {today}.
+
+Rules:
+- Two to four short sentences. Start with "Hi {person},". Say the item is attached.
+- Do not describe what the file contains, do not invent details, dates or numbers, and do not ask
+  {person} any questions about it. You do not know its contents.
+- Do not make new commitments or set new dates.
+- Do not write a closing, sign-off or my name; the signature is added automatically.
+
+Reply with JSON only: {{"subject": "...", "body": "...", "uses_search_results": false}}"""
 
 _DRAFT_PROMPT = """You prepare the deliverable for a promise I made, as a ready-to-send email
 from me to {person}. Today is {today}. Use ONLY facts from the provided search results; if they
@@ -91,6 +113,7 @@ class UngroundedDraftError(KeeperError):
 
 
 class ResearchPlan(BaseModel):
+    kind: Literal["research", "send_file", "other"] = "research"
     queries: list[str] = Field(default_factory=list)
 
 
@@ -140,8 +163,9 @@ class KeeperService:
         if existing is not None and existing.status is DraftStatus.PENDING:
             return existing
 
-        evidence = await self._gather(commitment)
-        content = await self._write(commitment, evidence, today)
+        plan = await self._plan(commitment)
+        evidence = await self._search_for(plan)
+        content = await self._write(commitment, evidence, today, plan.kind)
 
         numbered = {i: r.url for i, r in enumerate(evidence, start=1)}
         cited = sorted({int(n) for n in _CITATION.findall(content.body)} & numbered.keys())
@@ -156,13 +180,14 @@ class KeeperService:
                 subject=content.subject.strip(),
                 body=body,
                 sources=sources,
+                needs_attachment=plan.kind == "send_file",
             )
         )
         self._commitments.set_status(commitment_id, CommitmentStatus.READY_FOR_REVIEW)
         return draft
 
-    async def _gather(self, commitment: Commitment) -> list[SearchResult]:
-        plan = await self._llm.complete_json(
+    async def _plan(self, commitment: Commitment) -> ResearchPlan:
+        return await self._llm.complete_json(
             Tier.SUPER,
             [
                 {
@@ -175,6 +200,10 @@ class KeeperService:
             temperature=0.0,
             thinking=False,
         )
+
+    async def _search_for(self, plan: ResearchPlan) -> list[SearchResult]:
+        if plan.kind == "send_file":
+            return []  # the thing to send is the user's own; the web cannot help
         queries = [q.strip() for q in plan.queries if q.strip()][: self._max_queries]
         results: list[SearchResult] = []
         failure: SearchError | None = None
@@ -188,8 +217,22 @@ class KeeperService:
         return list({r.url: r for r in results}.values())
 
     async def _write(
-        self, commitment: Commitment, evidence: list[SearchResult], today: date
+        self, commitment: Commitment, evidence: list[SearchResult], today: date, kind: str
     ) -> DraftContent:
+        if kind == "send_file":
+            return await self._complete(
+                [
+                    {
+                        "role": "system",
+                        "content": _SEND_FILE_PROMPT.format(
+                            description=commitment.description,
+                            person=commitment.person,
+                            today=today.isoformat(),
+                        ),
+                    },
+                    {"role": "user", "content": f'Original words: "{commitment.source_quote}"'},
+                ]
+            )
         system = _DRAFT_PROMPT.format(person=commitment.person, today=today.isoformat())
         messages = [
             {

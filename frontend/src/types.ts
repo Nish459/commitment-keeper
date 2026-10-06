@@ -24,6 +24,7 @@ export interface Draft {
   created_at: string;
   sent_to: string | null;
   sent_at: string | null;
+  needs_attachment: boolean;
 }
 
 export interface Capabilities {

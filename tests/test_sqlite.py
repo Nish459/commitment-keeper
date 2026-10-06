@@ -159,3 +159,32 @@ def test_profile_name_roundtrip_overwrite_and_clear(db: Database) -> None:
     assert profile.get_name() == "Grace Hopper"
     profile.set_name("")
     assert profile.get_name() is None
+
+
+def test_needs_attachment_is_stored_and_legacy_databases_default_to_false(
+    db: Database, tmp_path: Path
+) -> None:
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    commitment = commitments.add(_commitment("Zoe"))
+    saved = drafts.add(
+        Draft(commitment_id=commitment.id or 0, subject="s", body="b", needs_attachment=True)
+    )
+    assert drafts.get(saved.id or 0) == saved
+    assert saved.needs_attachment is True
+
+    legacy = sqlite3.connect(tmp_path / "old.db")
+    legacy.execute(
+        "CREATE TABLE drafts (id INTEGER PRIMARY KEY AUTOINCREMENT, commitment_id INTEGER NOT NULL,"
+        " subject TEXT NOT NULL, body TEXT NOT NULL, sources TEXT NOT NULL, status TEXT NOT NULL,"
+        " created_at TEXT NOT NULL)"
+    )
+    legacy.execute(
+        "INSERT INTO drafts (commitment_id, subject, body, sources, status, created_at)"
+        " VALUES (1, 's', 'b', '[]', 'pending', '2026-10-06T00:00:00+00:00')"
+    )
+    legacy.commit()
+    legacy.close()
+    old = Database(tmp_path / "old.db")
+    assert SqliteDraftRepository(old).get(1).needs_attachment is False  # type: ignore[union-attr]
+    old.close()

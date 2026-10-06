@@ -67,6 +67,8 @@ class Draft(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
     sent_to: str | None = None
     sent_at: datetime | None = None
+    # The email says a file is attached; the user must add it before sending.
+    needs_attachment: bool = False
 
 
 class AuditEvent(BaseModel):

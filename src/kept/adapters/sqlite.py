@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS drafts (
     status TEXT NOT NULL,
     created_at TEXT NOT NULL,
     sent_to TEXT,
-    sent_at TEXT
+    sent_at TEXT,
+    needs_attachment INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS contacts (
     person TEXT PRIMARY KEY,
@@ -61,7 +62,11 @@ CREATE TABLE IF NOT EXISTS audit_events (
 
 
 # Columns added after the first release; older databases get them on open.
-_ADDED_COLUMNS = (("drafts", "sent_to", "TEXT"), ("drafts", "sent_at", "TEXT"))
+_ADDED_COLUMNS = (
+    ("drafts", "sent_to", "TEXT"),
+    ("drafts", "sent_at", "TEXT"),
+    ("drafts", "needs_attachment", "INTEGER NOT NULL DEFAULT 0"),
+)
 
 
 class Database:
@@ -164,6 +169,7 @@ def _to_draft(row: sqlite3.Row) -> Draft:
         created_at=datetime.fromisoformat(row["created_at"]),
         sent_to=row["sent_to"],
         sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
+        needs_attachment=bool(row["needs_attachment"]),
     )
 
 
@@ -173,8 +179,8 @@ class SqliteDraftRepository:
 
     def add(self, draft: Draft) -> Draft:
         cursor = self._db.execute(
-            "INSERT INTO drafts (commitment_id, subject, body, sources, status, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO drafts (commitment_id, subject, body, sources, status, created_at,"
+            " needs_attachment) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 draft.commitment_id,
                 draft.subject,
@@ -182,6 +188,7 @@ class SqliteDraftRepository:
                 json.dumps(draft.sources),
                 draft.status.value,
                 draft.created_at.isoformat(),
+                int(draft.needs_attachment),
             ),
         )
         return draft.model_copy(update={"id": cursor.lastrowid})

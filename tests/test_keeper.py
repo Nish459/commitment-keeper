@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from kept.adapters.sqlite import Database, SqliteCommitmentRepository, SqliteDraftRepository
 from kept.domain.errors import SearchError
@@ -296,3 +296,53 @@ async def test_a_repair_may_conclude_that_no_results_were_used() -> None:
     draft = await service.prepare(cid, TODAY)
     assert llm.draft_calls == 2
     assert draft.sources == []
+
+
+SEND_FILE_PLAN = ResearchPlan(kind="send_file", queries=["ignored: nothing on the web helps"])
+
+
+async def test_sending_something_you_already_have_gets_a_cover_note_not_questions() -> None:
+    cover = DraftContent(
+        subject="Q4 roadmap",
+        body="Hi Zoe,\n\nAs promised, the Q4 roadmap is attached.",
+        uses_search_results=False,
+    )
+    llm = FakeLLM(SEND_FILE_PLAN, cover)
+    search = FakeSearch([ACME])
+    service, _, _, cid = _setup(llm, search, signature="Ada Lovelace")
+
+    draft = await service.prepare(cid, TODAY)
+
+    assert search.queries == []  # the web cannot produce the user's own file
+    assert draft.needs_attachment is True
+    assert draft.sources == []
+    assert (
+        draft.body == "Hi Zoe,\n\nAs promised, the Q4 roadmap is attached.\n\nBest,\nAda Lovelace"
+    )
+    prompt = llm.last_system_prompt
+    assert "cover email" in prompt and "You do not know its contents" in prompt
+    assert "do not ask" in prompt and "ask for each" not in prompt
+    assert llm.draft_calls == 1  # no citation repair for a cover note
+
+
+async def test_research_and_other_promises_do_not_need_an_attachment() -> None:
+    for kind in ("research", "other"):
+        llm = FakeLLM(
+            ResearchPlan(kind=kind, queries=[]),
+            DraftContent(subject="s", body="Hello.", uses_search_results=False),
+        )
+        service, _, _, cid = _setup(llm, FakeSearch())
+        assert (await service.prepare(cid, TODAY)).needs_attachment is False
+
+
+async def test_the_planner_is_taught_the_three_kinds_with_examples() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    for needle in ('"send_file"', '"research"', '"other"', "send the Q4 roadmap"):
+        assert needle in llm.plan_prompt
+
+
+def test_an_unknown_kind_is_rejected_by_validation_so_the_model_gets_a_repair_round() -> None:
+    with pytest.raises(ValidationError):
+        ResearchPlan.model_validate({"kind": "banana", "queries": []})
