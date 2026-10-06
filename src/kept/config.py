@@ -38,11 +38,13 @@ class Settings(BaseSettings):
     demo_mode: bool = False
     demo_max_sessions: int = 200
     demo_session_minutes: int = 120
-    demo_max_notes: int = 5
-    demo_max_drafts: int = 10
-    demo_max_checks: int = 5
+    demo_max_notes: int = 20
+    demo_max_drafts: int = 40
+    demo_max_checks: int = 10
     demo_max_concurrent: int = 4
-    demo_max_note_chars: int = 4000
+    demo_max_note_chars: int = 8000
+    # Optional. Entering it lifts a visitor's limits (put it in the submission's testing notes).
+    demo_access_code: SecretStr = SecretStr("")
 
     # Outbound email. Off unless smtp_host and email_from are set.
     smtp_host: str = ""

@@ -1,8 +1,8 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -11,8 +11,9 @@ from kept.adapters.llm import LLMError
 from kept.api.routes import router
 from kept.config import Settings, get_settings
 from kept.container import Container, build_container
-from kept.demo import SessionManager, build_session_manager
+from kept.demo import COOKIE_NAME, SessionManager, build_session_manager
 from kept.domain.errors import (
+    AccessDeniedError,
     DemoLimitError,
     EmailError,
     EmailNotConfiguredError,
@@ -32,6 +33,7 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     DraftAlreadyReviewedError: 409,
     SearchError: 502,
     UngroundedDraftError: 502,
+    AccessDeniedError: 403,
     DemoLimitError: 429,
     EmailNotConfiguredError: 409,
     NoDueDateError: 409,
@@ -82,6 +84,39 @@ def create_app(
     app.state.container = container
     app.state.sessions = sessions
     app.include_router(router)
+
+    @app.middleware("http")
+    async def demo_workspace(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """In demo mode, give each visitor their own workspace and keep it via a cookie.
+
+        Done here rather than in a dependency so the cookie is set on error responses too,
+        and so static files never create workspaces.
+        """
+        manager: SessionManager | None = app.state.sessions
+        if manager is None or not request.url.path.startswith("/api/"):
+            return await call_next(request)
+        await manager.reap()
+        try:
+            session_id, workspace, _ = manager.get_or_create(
+                request.cookies.get(COOKIE_NAME),
+                client=request.client.host if request.client else "",
+            )
+        except DemoLimitError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=429)
+        request.state.workspace = workspace
+        response = await call_next(request)
+        response.set_cookie(
+            COOKIE_NAME,
+            session_id,
+            max_age=workspace.settings.demo_session_minutes * 60,
+            httponly=True,
+            samesite="lax",
+            secure=request.url.scheme == "https",
+            path="/",
+        )
+        return response
 
     @app.get("/health")
     def health() -> dict[str, object]:

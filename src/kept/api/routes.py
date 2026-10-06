@@ -1,10 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, StringConstraints
 
 from kept.container import Container
-from kept.demo import COOKIE_NAME, SessionManager
 from kept.domain.models import (
     AuditEvent,
     Commitment,
@@ -21,24 +20,13 @@ from kept.services.sweep import SweepResult
 router = APIRouter(prefix="/api")
 
 
-async def get_container(request: Request, response: Response) -> Container:
-    """The workspace for this request: the single one, or this visitor's own in demo mode."""
-    sessions: SessionManager | None = request.app.state.sessions
-    if sessions is None:
-        container: Container = request.app.state.container
-        return container
-    await sessions.reap()
-    session_id, workspace, _ = sessions.get_or_create(request.cookies.get(COOKIE_NAME))
-    response.set_cookie(
-        COOKIE_NAME,
-        session_id,
-        max_age=workspace.settings.demo_session_minutes * 60,
-        httponly=True,
-        samesite="lax",
-        secure=request.url.scheme == "https",
-        path="/",
-    )
-    return workspace
+def get_container(request: Request) -> Container:
+    """This request's workspace: this visitor's own in demo mode, otherwise the single one."""
+    workspace: Container | None = getattr(request.state, "workspace", None)
+    if workspace is not None:
+        return workspace
+    container: Container = request.app.state.container
+    return container
 
 
 Deps = Annotated[Container, Depends(get_container)]
@@ -152,6 +140,8 @@ class EmailCapability(BaseModel):
 class Capabilities(BaseModel):
     email: EmailCapability
     demo: bool
+    access_code: bool  # a code exists that lifts the demo's limits
+    unlocked: bool  # this workspace already entered it
 
 
 @router.get("/capabilities")
@@ -164,7 +154,22 @@ def capabilities(c: Deps) -> Capabilities:
             recipients=(s.email_allowed_recipients or [s.email_from]) if s.email_enabled else [],
         ),
         demo=s.demo_mode,
+        access_code=s.demo_mode and bool(s.demo_access_code.get_secret_value()),
+        unlocked=bool(c.guard and c.guard.unlocked),
     )
+
+
+class AccessIn(BaseModel):
+    code: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+
+
+@router.post("/demo/access")
+def unlock_demo(body: AccessIn, c: Deps) -> dict[str, bool]:
+    """Enter the access code to lift this demo workspace's limits."""
+    if c.guard is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    c.guard.try_unlock(body.code, c.settings.demo_access_code.get_secret_value())
+    return {"unlocked": True}
 
 
 @router.get("/contacts")

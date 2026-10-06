@@ -20,3 +20,7 @@ class DemoLimitError(Exception):
 
 class NoDueDateError(Exception):
     """The promise has no deadline, so there is nothing to put on a calendar."""
+
+
+class AccessDeniedError(Exception):
+    """The access code was wrong."""
