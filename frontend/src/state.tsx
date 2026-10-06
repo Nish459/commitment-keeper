@@ -45,7 +45,12 @@ export const initialState: State = {
   drafts: [],
   audit: [],
   allowlist: [],
-  capabilities: { email: { enabled: false, sender: "", recipients: [] }, demo: false },
+  capabilities: {
+    email: { enabled: false, sender: "", recipients: [] },
+    demo: false,
+    access_code: false,
+    unlocked: false,
+  },
   contacts: {},
   profileName: "",
   profileOpen: false,
@@ -134,6 +139,7 @@ export interface Actions {
   prepare: (commitmentId: number) => Promise<void>;
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
+  unlockDemo: (code: string) => Promise<boolean>;
   saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
   approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
@@ -237,6 +243,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }, "Draft ready for your review."),
         );
         await refresh().catch(() => undefined);
+      },
+
+      async unlockDemo(code) {
+        try {
+          await api.unlockDemo(code);
+          const [capabilities, hosts] = await Promise.all([api.capabilities(), api.allowlist()]);
+          dispatch({ type: "setup", hosts, capabilities });
+          toast("Full access is on. The demo limits are lifted.");
+          return true;
+        } catch (error) {
+          toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          return false;
+        }
       },
 
       checkWeek: () =>

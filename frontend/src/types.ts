@@ -29,6 +29,8 @@ export interface Draft {
 export interface Capabilities {
   email: { enabled: boolean; sender: string; recipients: string[] };
   demo: boolean;
+  access_code: boolean;
+  unlocked: boolean;
 }
 
 export interface AuditEvent {

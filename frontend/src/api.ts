@@ -35,6 +35,7 @@ export const api = {
   commitments: () => request<Commitment[]>("/api/commitments"),
   drafts: () => request<Draft[]>("/api/drafts"),
   audit: () => request<AuditEvent[]>("/api/audit?limit=200"),
+  unlockDemo: (code: string) => post<{ unlocked: boolean }>("/api/demo/access", { code }),
   allowlist: () => request<string[]>("/api/allowlist"),
   capabilities: () => request<Capabilities>("/api/capabilities"),
   contacts: () => request<Record<string, string>>("/api/contacts"),

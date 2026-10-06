@@ -212,7 +212,7 @@ describe("Detail email sending", () => {
     selectedId: 1,
   };
   const emailOn = (recipients: string[]) => ({
-    capabilities: { email: { enabled: true, sender: "me@example.com", recipients }, demo: false },
+    capabilities: { email: { enabled: true, sender: "me@example.com", recipients }, demo: false, access_code: false, unlocked: false },
   });
 
   it("offers a plain Approve when email is not configured", () => {
@@ -311,31 +311,63 @@ describe("ProfileDialog", () => {
 
 
 describe("Demo mode", () => {
-  const demo = { capabilities: { email: { enabled: false, sender: "", recipients: [] }, demo: true } };
+  const caps = (extra: { access_code?: boolean; unlocked?: boolean } = {}) => ({
+    capabilities: {
+      email: { enabled: false, sender: "", recipients: [] },
+      demo: true,
+      access_code: false,
+      unlocked: false,
+      ...extra,
+    },
+  });
 
-  it("tells visitors the workspace is private and temporary", () => {
-    renderApp(<DemoBanner />, demo);
-    expect(screen.getByText(/This is a demo workspace/)).toBeInTheDocument();
-    expect(screen.getByText(/Email sending is off/)).toBeInTheDocument();
+  it("tells visitors the workspace is private and that nothing is emailed", () => {
+    renderApp(<DemoBanner />, caps());
+    expect(screen.getByText("Demo workspace.")).toBeInTheDocument();
+    expect(screen.getByText(/nothing is emailed/)).toBeInTheDocument();
   });
 
   it("shows nothing outside the demo", () => {
     renderApp(<DemoBanner />);
-    expect(screen.queryByText(/demo workspace/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Demo workspace/)).not.toBeInTheDocument();
   });
 
-  it("explains that sending is disabled in the demo instead of pointing at .env", () => {
+  it("can be dismissed", async () => {
+    renderApp(<DemoBanner />, caps());
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss this notice" }));
+    expect(screen.queryByText(/Demo workspace/)).not.toBeInTheDocument();
+  });
+
+  it("does not mention an access code when there is none", () => {
+    renderApp(<DemoBanner />, caps());
+    expect(screen.queryByRole("button", { name: "Have an access code?" })).not.toBeInTheDocument();
+  });
+
+  it("lets a judge enter the access code", async () => {
+    const { actions } = renderApp(<DemoBanner />, caps({ access_code: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Have an access code?" }));
+    await userEvent.type(screen.getByLabelText("Access code"), "  judge-2026 ");
+    await userEvent.click(screen.getByRole("button", { name: "Unlock" }));
+    expect(actions.unlockDemo).toHaveBeenCalledWith("judge-2026");
+  });
+
+  it("confirms once full access is on and stops asking", () => {
+    renderApp(<DemoBanner />, caps({ access_code: true, unlocked: true }));
+    expect(screen.getByText(/Full access is on/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Have an access code?" })).not.toBeInTheDocument();
+  });
+
+  it("explains approving in the demo instead of pointing at .env", () => {
     renderApp(<Detail />, {
-      ...demo,
+      ...caps(),
       commitments: [commitment({ status: "ready_for_review" })],
       drafts: [draft()],
       selectedId: 1,
     });
-    expect(screen.getByText(/Sending is turned off in the demo/)).toBeInTheDocument();
+    expect(screen.getByText(/In the demo, approving marks the promise as kept/)).toBeInTheDocument();
     expect(screen.queryByText(/SMTP/)).not.toBeInTheDocument();
   });
 });
-
 
 describe("WeekCheckPanel", () => {
   const two = [

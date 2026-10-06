@@ -22,6 +22,7 @@ export function makeActions(): Actions {
     prepare: vi.fn().mockResolvedValue(undefined),
     sweep: vi.fn().mockResolvedValue(undefined),
     checkWeek: vi.fn().mockResolvedValue(undefined),
+    unlockDemo: vi.fn().mockResolvedValue(true),
     saveDraft: vi.fn().mockResolvedValue(true),
     approve: vi.fn().mockResolvedValue(undefined),
     reject: vi.fn().mockResolvedValue(undefined),

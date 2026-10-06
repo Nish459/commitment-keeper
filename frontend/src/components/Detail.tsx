@@ -119,7 +119,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
         {pending && !email.enabled && (
           <p className="note">
             {state.capabilities.demo ? (
-              "Sending is turned off in the demo. Copy the email, or run Kept yourself to send it."
+              "In the demo, approving marks the promise as kept and nothing is emailed. Copy the text, or run Kept yourself to send it."
             ) : (
               <>
                 Sending is off. Add your SMTP settings to <code>.env</code> to send from here, or copy the
