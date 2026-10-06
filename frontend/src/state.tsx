@@ -114,6 +114,7 @@ export interface Actions {
   closeComposer: () => void;
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number) => Promise<void>;
+  saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
   approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
   ingest: (name: string, text: string) => Promise<void>;
@@ -203,6 +204,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }, "Draft ready for your review."),
         );
         await refresh().catch(() => undefined);
+      },
+
+      async saveDraft(draftId, subject, body) {
+        try {
+          await api.updateDraft(draftId, subject, body);
+          await refresh();
+          toast("Draft saved.");
+          return true;
+        } catch (error) {
+          toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          return false;
+        }
       },
 
       approve: (draftId, to) =>

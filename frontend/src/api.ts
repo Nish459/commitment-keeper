@@ -17,6 +17,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+const put = <T>(path: string, body: unknown) =>
+  request<T>(path, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, {
     method: "POST",
@@ -34,6 +41,8 @@ export const api = {
   ingest: (sourceId: string, text: string) =>
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
+  updateDraft: (draftId: number, subject: string, body: string) =>
+    put<Draft>(`/api/drafts/${draftId}`, { subject, body }),
   approve: (draftId: number, to?: string) =>
     post<Draft>(`/api/drafts/${draftId}/approve`, to ? { to } : undefined),
   reject: (draftId: number) => post<Draft>(`/api/drafts/${draftId}/reject`),

@@ -17,13 +17,71 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
   const working = Boolean(state.busy[`draft-${draft.id}`]);
   const remembered = state.contacts[person.toLowerCase()];
   const [to, setTo] = useState(remembered ?? (email.recipients.length === 1 ? email.recipients[0] : "") ?? "");
+  const [editing, setEditing] = useState(false);
+  const [subject, setSubject] = useState(draft.subject);
+  const [text, setText] = useState(draft.body);
+  const [saving, setSaving] = useState(false);
   const sentOn = draft.sent_at ? new Date(draft.sent_at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : "";
+
+  if (editing) {
+    return (
+      <article className="draft" aria-label="Edit email draft">
+        <form
+          className="draft-edit"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSaving(true);
+            void actions.saveDraft(draft.id, subject.trim(), text.trim()).then((saved) => {
+              setSaving(false);
+              if (saved) setEditing(false);
+            });
+          }}
+        >
+          <label className="field">
+            <span>Subject</span>
+            <input required maxLength={200} value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Message</span>
+            <textarea
+              required
+              rows={16}
+              maxLength={20000}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </label>
+          <p className="note">Citations like [1] link to the Sources list at the end of the message.</p>
+          <div className="draft-buttons">
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+            <button className="btn btn-secondary" type="button" disabled={saving} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </article>
+    );
+  }
 
   return (
     <article className="draft" aria-label="Email draft">
       <div className="draft-head">
         <h3 className="draft-subject">{draft.subject}</h3>
-        {!pending && (
+        {pending ? (
+          <button
+            className="btn btn-quiet"
+            type="button"
+            onClick={() => {
+              setSubject(draft.subject);
+              setText(draft.body);
+              setEditing(true);
+            }}
+          >
+            Edit
+          </button>
+        ) : (
           <span className={`draft-state is-${draft.status}`}>
             {draft.status === "approved" ? (draft.sent_to ? "Sent" : "Approved") : "Rejected"}
           </span>

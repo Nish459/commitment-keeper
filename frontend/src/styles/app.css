@@ -593,6 +593,15 @@
   background: var(--seal-wash);
   color: var(--seal);
 }
+.draft-edit {
+  display: grid;
+  gap: var(--s-4);
+}
+.draft-edit textarea {
+  min-height: 18rem;
+  line-height: 1.55;
+  font-family: var(--font-body);
+}
 .draft-buttons {
   display: flex;
   flex-wrap: wrap;

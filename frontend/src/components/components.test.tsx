@@ -106,6 +106,51 @@ describe("Detail", () => {
   });
 });
 
+describe("Detail draft editing", () => {
+  const pending = {
+    commitments: [commitment({ status: "ready_for_review" })],
+    drafts: [draft()],
+    selectedId: 1,
+  };
+
+  it("edits subject and message and saves them", async () => {
+    const { actions } = renderApp(<Detail />, pending);
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    const subject = screen.getByLabelText("Subject");
+    const message = screen.getByLabelText("Message");
+    expect(subject).toHaveValue("Comparison");
+    expect(message).toHaveValue(draft().body);
+
+    await userEvent.clear(subject);
+    await userEvent.type(subject, "Updated subject");
+    await userEvent.clear(message);
+    await userEvent.type(message, "Updated message");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(actions.saveDraft).toHaveBeenCalledWith(1, "Updated subject", "Updated message");
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("cancels without saving", async () => {
+    const { actions } = renderApp(<Detail />, pending);
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.type(screen.getByLabelText("Subject"), " changed");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(actions.saveDraft).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Comparison" })).toBeInTheDocument();
+  });
+
+  it("does not offer editing for a draft that was already approved", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ status: "done" })],
+      drafts: [draft({ status: "approved" })],
+      selectedId: 1,
+    });
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Detail email sending", () => {
   const pending = {
     commitments: [commitment({ status: "ready_for_review" })],

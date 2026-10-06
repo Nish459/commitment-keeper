@@ -17,6 +17,7 @@ export function makeActions(): Actions {
     closeComposer: vi.fn(),
     dismissToast: vi.fn(),
     prepare: vi.fn().mockResolvedValue(undefined),
+    saveDraft: vi.fn().mockResolvedValue(true),
     approve: vi.fn().mockResolvedValue(undefined),
     reject: vi.fn().mockResolvedValue(undefined),
     ingest: vi.fn().mockResolvedValue(undefined),
