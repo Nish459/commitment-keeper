@@ -295,3 +295,17 @@ async def test_drafts_are_signed_with_the_saved_profile_name(
     draft_id = await _prepared_draft(client)
     draft = next(d for d in (await client.get("/api/drafts")).json() if d["id"] == draft_id)
     assert "Best,\nAda Lovelace" in draft["body"]
+
+
+async def test_sweep_endpoint_drafts_everything_due_soon_and_reports_it(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})  # due Friday
+
+    swept = (await client.post("/api/sweep")).json()
+    assert [d["status"] for d in swept["prepared"]] == ["pending"]
+    assert (swept["failed"], swept["skipped"], swept["stopped"]) == ([], 0, None)
+
+    again = (await client.post("/api/sweep")).json()
+    assert again["prepared"] == []

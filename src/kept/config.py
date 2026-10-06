@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         "api.tavily.com",
     ]
 
+    # Proactive keeping: draft promises due within this many days, at most this many per run.
+    sweep_horizon_days: int = 3
+    sweep_max_per_run: int = 5
+
     # Demo mode: every visitor gets a private, temporary workspace; email is forced off.
     demo_mode: bool = False
     demo_max_sessions: int = 200

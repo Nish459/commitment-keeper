@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from kept.container import Container
 from kept.demo import COOKIE_NAME, SessionManager
 from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Draft, DraftStatus
+from kept.services.sweep import SweepResult
 
 router = APIRouter(prefix="/api")
 
@@ -55,6 +56,12 @@ async def prepare(commitment_id: int, c: Deps) -> Draft:
     """Research and draft the deliverable for a promise I made."""
     async with c.guarded("drafts"):
         return await c.keeper.prepare(commitment_id, c.today())
+
+
+@router.post("/sweep")
+async def sweep(c: Deps) -> SweepResult:
+    """Draft everything that is overdue or due within three days and has no draft yet."""
+    return await c.sweep.run(c.today())
 
 
 @router.get("/drafts")

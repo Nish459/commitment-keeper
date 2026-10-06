@@ -21,10 +21,12 @@ from kept.adapters.sqlite import (
 )
 from kept.adapters.tavily import TavilySearch
 from kept.config import Settings
+from kept.domain.models import Draft
 from kept.domain.ports import EmailSender, StructuredLLM, WebSearch
 from kept.services.extraction import ExtractionService
 from kept.services.keeper import KeeperService
 from kept.services.review import ReviewService
+from kept.services.sweep import SweepService
 
 if TYPE_CHECKING:
     from kept.demo import DemoGuard
@@ -43,6 +45,7 @@ class Container:
     extraction: ExtractionService
     keeper: KeeperService
     review: ReviewService
+    sweep: SweepService
     today: Callable[[], date]
     guard: "DemoGuard | None" = None
 
@@ -86,6 +89,18 @@ def build_container(
             sender=settings.email_from,
             sink=audit,
         )
+    keeper = KeeperService(
+        structured_llm,
+        web_search,
+        commitments,
+        drafts,
+        signature=lambda: profile.get_name() or settings.user_name,
+    )
+
+    async def prepare(commitment_id: int, today_: date) -> Draft:
+        async with guard.run("drafts") if guard else nullcontext():
+            return await keeper.prepare(commitment_id, today_)
+
     return Container(
         settings=settings,
         db=database,
@@ -96,12 +111,13 @@ def build_container(
         contacts=contacts,
         profile=profile,
         extraction=ExtractionService(structured_llm, commitments),
-        keeper=KeeperService(
-            structured_llm,
-            web_search,
+        keeper=keeper,
+        sweep=SweepService(
             commitments,
             drafts,
-            signature=lambda: profile.get_name() or settings.user_name,
+            prepare,
+            horizon_days=settings.sweep_horizon_days,
+            max_per_run=settings.sweep_max_per_run,
         ),
         review=ReviewService(
             commitments,
