@@ -119,7 +119,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
             </span>
           </label>
         )}
-        {pending && !email.enabled && (
+        {pending && !email.enabled && !draft.needs_attachment && (
           <p className="note">
             {state.capabilities.demo ? (
               "In the demo, approving marks the promise as kept and nothing is emailed. Copy the text, or run Kept yourself to send it."

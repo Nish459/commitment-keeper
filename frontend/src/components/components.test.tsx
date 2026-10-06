@@ -602,6 +602,7 @@ describe("Attachments", () => {
   it("explains what to do when sending is off", () => {
     renderApp(<Detail />, needsFile);
     expect(screen.getByText(/Sending is off, so copy the text and attach the file/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Sending is off/)).toHaveLength(1); // one message, not two
     expect(screen.queryByLabelText("Choose files to attach")).not.toBeInTheDocument();
   });
 });

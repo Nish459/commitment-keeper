@@ -21,7 +21,7 @@ export function Attachments({ draft }: { draft: Draft }) {
     return pending && draft.needs_attachment ? (
       <p className="note attach-warning">
         This email says a file is attached. Sending is off, so copy the text and attach the file in your own
-        mail app.
+        mail app, or add your SMTP settings to <code>.env</code> to send it from here.
       </p>
     ) : null;
   }
