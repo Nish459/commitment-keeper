@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from kept.container import Container
 from kept.domain.models import AuditEvent, Commitment, CommitmentStatus, Draft, DraftStatus
@@ -42,6 +42,23 @@ async def prepare(commitment_id: int, c: Deps) -> Draft:
 @router.get("/drafts")
 def list_drafts(c: Deps, status: DraftStatus | None = None) -> list[Draft]:
     return c.drafts.list(status)
+
+
+class DraftEditIn(BaseModel):
+    # A newline in the subject would corrupt the email header, so it is rejected up front.
+    subject: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True, min_length=1, max_length=200, pattern=r"^[^\r\n]+$"
+        ),
+    ]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)]
+
+
+@router.put("/drafts/{draft_id}")
+def edit_draft(draft_id: int, edit: DraftEditIn, c: Deps) -> Draft:
+    """Edit the text of a draft that is still waiting for review."""
+    return c.review.edit(draft_id, edit.subject, edit.body)
 
 
 class ApproveIn(BaseModel):

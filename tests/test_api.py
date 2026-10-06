@@ -243,3 +243,31 @@ async def test_approve_email_errors_map_to_http_statuses(
     plain_draft = await _prepared_draft(plain)
     unconfigured = await plain.post(f"/api/drafts/{plain_draft}/approve", json={"to": "a@b.com"})
     assert unconfigured.status_code == 409
+
+
+async def test_edit_draft_updates_text_and_validates_input(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    draft_id = await _prepared_draft(client)
+
+    ok = await client.put(
+        f"/api/drafts/{draft_id}", json={"subject": "  Better subject ", "body": " Better body "}
+    )
+    assert ok.status_code == 200
+    assert (ok.json()["subject"], ok.json()["body"]) == ("Better subject", "Better body")
+    stored = (await client.get("/api/drafts")).json()[0]
+    assert stored["subject"] == "Better subject"
+
+    bad_subject = await client.put(
+        f"/api/drafts/{draft_id}", json={"subject": "a\nBcc: x@y.com", "body": "b"}
+    )
+    assert bad_subject.status_code == 422
+    blank_body = await client.put(f"/api/drafts/{draft_id}", json={"subject": "s", "body": "   "})
+    assert blank_body.status_code == 422
+    missing = await client.put("/api/drafts/999", json={"subject": "s", "body": "b"})
+    assert missing.status_code == 404
+
+    await client.post(f"/api/drafts/{draft_id}/reject")
+    reviewed = await client.put(f"/api/drafts/{draft_id}", json={"subject": "s", "body": "b"})
+    assert reviewed.status_code == 409

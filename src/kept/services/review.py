@@ -47,6 +47,12 @@ class ReviewService:
         self._commitments.set_status(draft.commitment_id, CommitmentStatus.DONE)
         return draft.model_copy(update={"status": DraftStatus.APPROVED})
 
+    def edit(self, draft_id: int, subject: str, body: str) -> Draft:
+        """Replace a pending draft's text. Approved or rejected drafts are history, not editable."""
+        draft = self._pending(draft_id)
+        self._drafts.update_content(draft_id, subject, body)
+        return draft.model_copy(update={"subject": subject, "body": body})
+
     def reject(self, draft_id: int) -> Draft:
         draft = self._pending(draft_id)
         self._drafts.set_status(draft_id, DraftStatus.REJECTED)

@@ -128,3 +128,23 @@ async def test_sending_without_email_configured_is_refused() -> None:
     env = Env()
     with pytest.raises(EmailNotConfiguredError):
         await env.service.approve(env.draft_id, "priya@acme.com")
+
+
+async def test_edit_replaces_text_of_a_pending_draft_and_sends_the_edit() -> None:
+    sender = FakeSender()
+    env = Env(sender, allowed=("priya@acme.com",))
+    edited = env.service.edit(env.draft_id, "New subject", "New body")
+    assert (edited.subject, edited.body) == ("New subject", "New body")
+    assert (env.drafts.get(env.draft_id) or edited).body == "New body"
+
+    await env.service.approve(env.draft_id, "priya@acme.com")
+    assert sender.sent == [("priya@acme.com", "New subject", "New body")]
+
+
+async def test_edit_is_refused_once_reviewed_or_unknown() -> None:
+    env = Env()
+    await env.service.approve(env.draft_id)
+    with pytest.raises(DraftAlreadyReviewedError):
+        env.service.edit(env.draft_id, "s", "b")
+    with pytest.raises(DraftNotFoundError):
+        env.service.edit(999, "s", "b")

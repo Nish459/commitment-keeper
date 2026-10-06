@@ -205,6 +205,11 @@ class SqliteDraftRepository:
     def set_status(self, draft_id: int, status: DraftStatus) -> None:
         self._db.execute("UPDATE drafts SET status = ? WHERE id = ?", (status.value, draft_id))
 
+    def update_content(self, draft_id: int, subject: str, body: str) -> None:
+        self._db.execute(
+            "UPDATE drafts SET subject = ?, body = ? WHERE id = ?", (subject, body, draft_id)
+        )
+
     def set_sent(self, draft_id: int, to: str, at: datetime) -> None:
         self._db.execute(
             "UPDATE drafts SET sent_to = ?, sent_at = ? WHERE id = ?",

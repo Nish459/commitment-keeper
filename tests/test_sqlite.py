@@ -129,3 +129,22 @@ def test_opening_a_legacy_database_adds_missing_columns(tmp_path: Path) -> None:
     columns = {row["name"] for row in db.query("PRAGMA table_info(drafts)")}
     assert {"sent_to", "sent_at"} <= columns
     db.close()
+
+
+def test_update_content_changes_only_subject_and_body(db: Database) -> None:
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    commitment = commitments.add(_commitment("Priya"))
+    assert commitment.id is not None
+    saved = drafts.add(
+        Draft(
+            commitment_id=commitment.id, subject="Old", body="Old body", sources=["https://a.test"]
+        )
+    )
+    assert saved.id is not None
+
+    drafts.update_content(saved.id, "New", "New body")
+    stored = drafts.get(saved.id)
+    assert stored is not None
+    assert (stored.subject, stored.body) == ("New", "New body")
+    assert (stored.sources, stored.status) == (["https://a.test"], DraftStatus.PENDING)
