@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { commitment, draft, renderApp, TODAY } from "../testing";
+import { App } from "../App";
 import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
 import { Ledger } from "./Ledger";
+import { ProfileDialog } from "./ProfileDialog";
 import { DraftBody } from "./RichText";
 import { buildColumns } from "./Timeline";
 
@@ -176,7 +178,7 @@ describe("Detail email sending", () => {
       contacts: { priya: "priya@acme.com" },
     });
     expect(screen.getByLabelText(/Send to/)).toHaveValue("priya@acme.com");
-    expect(screen.getByText(/Kept can only email priya@acme.com, @corp.com/)).toBeInTheDocument();
+    expect(screen.getByText(/Sending as me@example.com. Kept can only email priya@acme.com, @corp.com/)).toBeInTheDocument();
     expect(screen.queryByText(/Sending is off/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Send email" }));
@@ -228,5 +230,29 @@ describe("quoteText", () => {
   it("marks mid-sentence excerpts with an ellipsis and leaves full sentences alone", () => {
     expect(quoteText("she will share the deck by Wednesday.")).toBe("…she will share the deck by Wednesday.");
     expect(quoteText("I will send it by Friday.")).toBe("I will send it by Friday.");
+  });
+});
+
+
+describe("App header profile", () => {
+  it("asks for a name when none is set", () => {
+    renderApp(<App />);
+    expect(screen.getByRole("button", { name: "Add your name" })).toBeInTheDocument();
+  });
+
+  it("opens the name dialog from the header", async () => {
+    const { actions } = renderApp(<App />, { profileName: "Ada Lovelace" });
+    await userEvent.click(screen.getByRole("button", { name: "Signing as Ada Lovelace" }));
+    expect(actions.openProfile).toHaveBeenCalled();
+  });
+});
+
+describe("ProfileDialog", () => {
+  it("saves the trimmed name", async () => {
+    const { actions } = renderApp(<ProfileDialog />, { profileName: "", profileOpen: true });
+    const input = screen.getByLabelText("Name", { selector: "input" });
+    await userEvent.type(input, "  Ada Lovelace ");
+    await userEvent.click(screen.getByRole("button", { name: "Save name" }));
+    expect(actions.saveProfile).toHaveBeenCalledWith("Ada Lovelace");
   });
 });

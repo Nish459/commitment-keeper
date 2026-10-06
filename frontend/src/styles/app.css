@@ -173,7 +173,9 @@
 
 .line-scroll {
   overflow-x: auto;
-  padding-bottom: var(--s-2);
+  /* Room above and beside for the selected token's focus ring, which overflow would clip. */
+  padding: 6px 6px var(--s-2);
+  margin: -6px -6px 0;
 }
 .line-grid {
   --axis-h: 2.75rem;
@@ -966,4 +968,16 @@ tr.is-blocked td {
     width: 1.25rem;
     height: 1.25rem;
   }
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.profile-button {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

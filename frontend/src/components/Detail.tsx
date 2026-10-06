@@ -112,7 +112,7 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
               aria-describedby={`allowed-${draft.id}`}
             />
             <span className="note" id={`allowed-${draft.id}`}>
-              Kept can only email {email.recipients.join(", ")}.
+              Sending as {email.sender}. Kept can only email {email.recipients.join(", ")}.
             </span>
           </label>
         )}

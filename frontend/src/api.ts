@@ -38,6 +38,8 @@ export const api = {
   allowlist: () => request<string[]>("/api/allowlist"),
   capabilities: () => request<Capabilities>("/api/capabilities"),
   contacts: () => request<Record<string, string>>("/api/contacts"),
+  profile: () => request<{ name: string }>("/api/profile"),
+  saveProfile: (name: string) => put<{ name: string }>("/api/profile", { name }),
   ingest: (sourceId: string, text: string) =>
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),

@@ -27,6 +27,8 @@ export interface State {
   allowlist: string[];
   capabilities: Capabilities;
   contacts: Record<string, string>;
+  profileName: string;
+  profileOpen: boolean;
   selectedId: number | null;
   filter: FilterId;
   busy: Record<string, true>;
@@ -44,6 +46,8 @@ export const initialState: State = {
   allowlist: [],
   capabilities: { email: { enabled: false, sender: "", recipients: [] } },
   contacts: {},
+  profileName: "",
+  profileOpen: false,
   selectedId: null,
   filter: "open",
   busy: {},
@@ -58,6 +62,8 @@ type Action =
   | { type: "loaded"; commitments: Commitment[]; drafts: Draft[]; audit: AuditEvent[] }
   | { type: "setup"; hosts: string[]; capabilities: Capabilities }
   | { type: "contacts"; contacts: Record<string, string> }
+  | { type: "profile"; name: string }
+  | { type: "profileDialog"; open: boolean }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
   | { type: "busy"; key: string; value: boolean }
@@ -82,6 +88,10 @@ function reducer(state: State, action: Action): State {
       return { ...state, allowlist: action.hosts, capabilities: action.capabilities };
     case "contacts":
       return { ...state, contacts: action.contacts };
+    case "profile":
+      return { ...state, profileName: action.name };
+    case "profileDialog":
+      return { ...state, profileOpen: action.open };
     case "select":
       return { ...state, selectedId: action.id };
     case "filter":
@@ -112,6 +122,9 @@ export interface Actions {
   closePerimeter: () => void;
   openComposer: (options?: { sample?: boolean }) => void;
   closeComposer: () => void;
+  openProfile: () => void;
+  closeProfile: () => void;
+  saveProfile: (name: string) => Promise<boolean>;
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number) => Promise<void>;
   saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
@@ -190,6 +203,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       closePerimeter: () => dispatch({ type: "perimeter", open: false }),
       openComposer: (options) => dispatch({ type: "composer", open: true, sample: options?.sample }),
       closeComposer: () => dispatch({ type: "composer", open: false }),
+      openProfile: () => dispatch({ type: "profileDialog", open: true }),
+      closeProfile: () => dispatch({ type: "profileDialog", open: false }),
+      async saveProfile(name) {
+        try {
+          const saved = await api.saveProfile(name);
+          dispatch({ type: "profile", name: saved.name });
+          toast(saved.name ? `Emails will be signed ${saved.name}.` : "Name cleared.");
+          return true;
+        } catch (error) {
+          toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          return false;
+        }
+      },
       dismissToast: (id) => dispatch({ type: "dismissToast", id }),
 
       async prepare(commitmentId) {
@@ -261,12 +287,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void guarded(async () => {
-      const [hosts, capabilities, contacts, commitments] = await Promise.all([
+      const [hosts, capabilities, contacts, profile, commitments] = await Promise.all([
         api.allowlist(),
         api.capabilities(),
         api.contacts(),
+        api.profile(),
         refresh(),
       ]);
+      dispatch({ type: "profile", name: profile.name });
       dispatch({ type: "setup", hosts, capabilities });
       dispatch({ type: "contacts", contacts });
       const first = commitments.find((c) => c.status === "ready_for_review") ?? commitments[0];
