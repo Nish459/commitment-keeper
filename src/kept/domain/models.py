@@ -82,6 +82,20 @@ class Attachment(BaseModel):
     data: bytes = Field(default=b"", exclude=True, repr=False)
 
 
+class PersonSummary(BaseModel):
+    """What Kept remembers about one person, computed from promises and sent emails."""
+
+    name: str
+    promises_by_me: int  # promises I made to them, not counting dropped ones
+    kept_by_me: int
+    open_by_me: int
+    open_to_me: int  # promises they made to me that are still open
+    overdue: int  # open promises, either direction, past their due date
+    emails_sent: int
+    last_emailed_at: datetime | None = None
+    last_subject: str | None = None
+
+
 class AuditEvent(BaseModel):
     """One outbound request attempt. Never contains bodies, queries or credentials."""
 

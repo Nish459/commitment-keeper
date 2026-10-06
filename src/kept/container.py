@@ -28,6 +28,7 @@ from kept.services.attachments import AttachmentService
 from kept.services.extraction import ExtractionService
 from kept.services.keeper import KeeperService
 from kept.services.manual import ManualEntryService
+from kept.services.people import PeopleService
 from kept.services.planner import PlannerService
 from kept.services.review import ReviewService
 from kept.services.sweep import SweepService
@@ -52,6 +53,7 @@ class Container:
     sweep: SweepService
     manual: ManualEntryService
     attachments: AttachmentService
+    people: PeopleService
     planner: PlannerService
     today: Callable[[], date]
     guard: "DemoGuard | None" = None
@@ -97,12 +99,14 @@ def build_container(
             sender=settings.email_from,
             sink=audit,
         )
+    people = PeopleService(commitments, drafts)
     keeper = KeeperService(
         structured_llm,
         web_search,
         commitments,
         drafts,
         signature=lambda: profile.get_name() or settings.user_name,
+        people=people,
     )
 
     async def prepare(commitment_id: int, today_: date) -> Draft:
@@ -123,6 +127,7 @@ def build_container(
         planner=PlannerService(structured_llm, commitments),
         manual=ManualEntryService(commitments),
         attachments=AttachmentService(drafts, attachment_files),
+        people=people,
         sweep=SweepService(
             commitments,
             drafts,

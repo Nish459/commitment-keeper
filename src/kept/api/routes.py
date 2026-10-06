@@ -14,6 +14,7 @@ from kept.domain.models import (
     Direction,
     Draft,
     DraftStatus,
+    PersonSummary,
     utcnow,
 )
 from kept.services.attachments import MAX_FILE_BYTES
@@ -216,6 +217,12 @@ def unlock_demo(body: AccessIn, c: Deps) -> dict[str, bool]:
         raise HTTPException(status_code=404, detail="Not found")
     c.guard.try_unlock(body.code, c.settings.demo_access_code.get_secret_value())
     return {"unlocked": True}
+
+
+@router.get("/people")
+def people(c: Deps) -> list[PersonSummary]:
+    """What Kept remembers about each person: promises kept, open items, emails sent."""
+    return c.people.all(c.today())
 
 
 @router.get("/contacts")

@@ -18,6 +18,7 @@ from kept.domain.models import (
     Tier,
 )
 from kept.domain.ports import CommitmentRepository, DraftRepository, StructuredLLM, WebSearch
+from kept.services.people import PeopleService
 
 _SNIPPET_LIMIT = 1200
 
@@ -75,6 +76,12 @@ _NO_EVIDENCE_RULE = """
 You have NO search results. Do not state or imply any progress, findings, options, availability,
 prices or decisions. You may only restate the promise, say it is still being worked on only if
 that is explicitly in the promise text, and ask for any information needed to proceed."""
+
+_HISTORY_RULE = """
+A short history with {person} is included. Use it only to avoid repeating yourself (for example,
+say you are following up on an earlier email) or to briefly remind them of a promise they still
+owe you. Never state anything about the history that is not in it, and never turn it into a new
+commitment."""
 
 _REPAIR_PROMPT = (
     "Your draft cites no sources. Rewrite it so every fact taken from the search results ends "
@@ -144,6 +151,7 @@ class KeeperService:
         max_queries: int = 3,
         max_results: int = 5,
         signature: Callable[[], str] = lambda: "",
+        people: PeopleService | None = None,
     ) -> None:
         self._llm = llm
         self._search = search
@@ -152,6 +160,7 @@ class KeeperService:
         self._max_queries = max_queries
         self._max_results = max_results
         self._signature = signature
+        self._people = people
 
     async def prepare(self, commitment_id: int, today: date) -> Draft:
         commitment = self._commitments.get(commitment_id)
@@ -234,16 +243,23 @@ class KeeperService:
                 ]
             )
         system = _DRAFT_PROMPT.format(person=commitment.person, today=today.isoformat())
+        if not evidence:
+            system += _NO_EVIDENCE_RULE
+        history = (
+            self._people.context_for(commitment.person, today, commitment.id)
+            if self._people
+            else ""
+        )
+        if history:
+            system += _HISTORY_RULE.format(person=commitment.person)
         messages = [
-            {
-                "role": "system",
-                "content": system if evidence else system + _NO_EVIDENCE_RULE,
-            },
+            {"role": "system", "content": system},
             {
                 "role": "user",
                 "content": f"Promise: {commitment.description}\n"
                 f'Original words: "{commitment.source_quote}"\n\n'
-                f"Search results:\n{_format_evidence(evidence)}",
+                + (f"{history}\n\n" if history else "")
+                + f"Search results:\n{_format_evidence(evidence)}",
             },
         ]
         content = await self._complete(messages)

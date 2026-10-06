@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -6,7 +6,14 @@ from pydantic import BaseModel, ValidationError
 
 from kept.adapters.sqlite import Database, SqliteCommitmentRepository, SqliteDraftRepository
 from kept.domain.errors import SearchError
-from kept.domain.models import Commitment, CommitmentStatus, Direction, SearchResult, Tier
+from kept.domain.models import (
+    Commitment,
+    CommitmentStatus,
+    Direction,
+    Draft,
+    SearchResult,
+    Tier,
+)
 from kept.services.keeper import (
     CommitmentNotFoundError,
     DraftContent,
@@ -15,6 +22,7 @@ from kept.services.keeper import (
     ResearchPlan,
     UngroundedDraftError,
 )
+from kept.services.people import PeopleService
 
 TODAY = date(2026, 10, 7)
 
@@ -346,3 +354,88 @@ async def test_the_planner_is_taught_the_three_kinds_with_examples() -> None:
 def test_an_unknown_kind_is_rejected_by_validation_so_the_model_gets_a_repair_round() -> None:
     with pytest.raises(ValidationError):
         ResearchPlan.model_validate({"kind": "banana", "queries": []})
+
+
+def _service_with_memory(
+    llm: FakeLLM, search: FakeSearch
+) -> tuple[KeeperService, SqliteCommitmentRepository, SqliteDraftRepository, int, int]:
+    """A keeper that remembers: Priya already has a kept promise, an email, and an open one."""
+    db = Database(":memory:")
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+
+    def promise(description: str, status: CommitmentStatus, direction: Direction) -> int:
+        saved = commitments.add(
+            Commitment(
+                direction=direction,
+                person="Priya",
+                description=description,
+                status=status,
+                source_id="n",
+                source_quote="q",
+            )
+        )
+        return saved.id or 0
+
+    current = promise("Send competitor comparison", CommitmentStatus.OPEN, Direction.OWED_BY_ME)
+    earlier = promise("Review pricing page", CommitmentStatus.DONE, Direction.OWED_BY_ME)
+    promise("Share the Q3 deck", CommitmentStatus.OPEN, Direction.OWED_TO_ME)
+    old = drafts.add(Draft(commitment_id=earlier, subject="Pricing review", body="b"))
+    drafts.set_sent(old.id or 0, "p@acme.com", datetime(2026, 10, 3, tzinfo=UTC))
+    service = KeeperService(
+        llm, search, commitments, drafts, people=PeopleService(commitments, drafts)
+    )
+    return service, commitments, drafts, current, earlier
+
+
+async def test_the_draft_prompt_carries_history_with_the_person_and_rules_for_using_it() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, current, _ = _service_with_memory(llm, FakeSearch([ACME]))
+
+    await service.prepare(current, TODAY)
+
+    assert "History with Priya:" in llm.last_user_prompt
+    assert '"Pricing review" (3 Oct 2026)' in llm.last_user_prompt
+    assert 'Priya owes you "Share the Q3 deck"' in llm.last_user_prompt
+    assert "Send competitor comparison" not in llm.last_user_prompt.split("History with")[1]
+    system = " ".join(llm.last_system_prompt.split())  # prompts are wrapped; compare ignoring that
+    assert "A short history with Priya is included" in system
+    assert "never turn it into a new commitment" in system
+
+
+async def test_a_cover_note_gets_no_history_it_is_just_a_cover_note() -> None:
+    llm = FakeLLM(
+        SEND_FILE_PLAN, DraftContent(subject="s", body="Attached.", uses_search_results=False)
+    )
+    service, _, _, current, _ = _service_with_memory(llm, FakeSearch())
+    await service.prepare(current, TODAY)
+    assert "History with" not in llm.last_user_prompt
+    assert "history" not in llm.last_system_prompt.lower()
+
+
+async def test_first_contact_has_no_history_block_and_no_history_rule() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    db = Database(":memory:")
+    commitments, drafts = SqliteCommitmentRepository(db), SqliteDraftRepository(db)
+    only = commitments.add(
+        Commitment(
+            direction=Direction.OWED_BY_ME,
+            person="Newcomer",
+            description="Send intro",
+            source_id="n",
+            source_quote="q",
+        )
+    )
+    service = KeeperService(
+        llm, FakeSearch([ACME]), commitments, drafts, people=PeopleService(commitments, drafts)
+    )
+    await service.prepare(only.id or 0, TODAY)
+    assert "History with" not in llm.last_user_prompt
+    assert "A short history" not in llm.last_system_prompt
+
+
+async def test_without_a_people_service_drafting_still_works() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert "History with" not in llm.last_user_prompt
