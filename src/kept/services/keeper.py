@@ -38,11 +38,16 @@ Rules:
   that are not in the promise, my original words, or the search results.
 - Do not make new commitments or set new dates. Only restate the existing promise and its
   original deadline.
-- If you need a detail to proceed (location, budget, headcount), ask {person} for it.
+- Start with "Hi {person}," and say plainly what this email is about.
+- If the promise needs details you do not have (location, budget, headcount, dates), ask for each
+  one in a short bulleted list. Never send a bare follow-up with no content or questions.
 - Keep it under 200 words, concise and professional.
 - Do not write a closing, sign-off or my name; the signature is added automatically.
 
-Reply with JSON only: {{"subject": "...", "body": "..."}}"""
+Reply with JSON only:
+{{"subject": "...", "body": "...", "uses_search_results": true | false}}
+Set "uses_search_results" to true only if the email states facts taken from the results. An email
+that just asks questions or restates the promise uses none, and then needs no citations."""
 
 _NO_EVIDENCE_RULE = """
 You have NO search results. Do not state or imply any progress, findings, options, availability,
@@ -92,6 +97,8 @@ class ResearchPlan(BaseModel):
 class DraftContent(BaseModel):
     subject: str
     body: str
+    # Strict by default: unless the model says it used no facts from the results, it must cite.
+    uses_search_results: bool = True
 
 
 def _format_evidence(results: list[SearchResult]) -> str:
@@ -197,14 +204,14 @@ class KeeperService:
             },
         ]
         content = await self._complete(messages)
-        if evidence and not _CITATION.search(content.body):
+        if evidence and content.uses_search_results and not _CITATION.search(content.body):
             repair = [
                 *messages,
                 {"role": "assistant", "content": content.model_dump_json()},
                 {"role": "user", "content": _REPAIR_PROMPT},
             ]
             content = await self._complete(repair)
-            if not _CITATION.search(content.body):
+            if content.uses_search_results and not _CITATION.search(content.body):
                 raise UngroundedDraftError("The draft cited no sources, so it was not saved")
         return content
 

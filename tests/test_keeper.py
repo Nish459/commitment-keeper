@@ -160,6 +160,8 @@ async def test_prompts_forbid_invented_details_commitments_and_placeholders() ->
     assert "Never invent facts about me" in llm.last_system_prompt
     assert "Do not make new commitments" in llm.last_system_prompt
     assert "the signature is added automatically" in llm.last_system_prompt
+    assert 'Start with "Hi Priya,"' in llm.last_system_prompt
+    assert "Never send a bare follow-up" in llm.last_system_prompt
 
 
 async def test_drafting_with_research_does_not_include_the_no_evidence_rule() -> None:
@@ -259,3 +261,38 @@ async def test_signature_is_read_fresh_for_every_draft() -> None:
         bodies.append((await service.prepare(saved.id or 0, TODAY)).body)
     assert bodies[0].endswith("Best,\nFirst Person")
     assert bodies[1].endswith("Best,\nSecond Person")
+
+
+async def test_a_draft_that_declares_no_use_of_results_needs_no_citations() -> None:
+    body = "Which city and budget should I plan for?"
+    llm = FakeLLM(
+        PLAN, DraftContent(subject="Quick question", body=body, uses_search_results=False)
+    )
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    draft = await service.prepare(cid, TODAY)
+    assert llm.draft_calls == 1  # no repair round-trip
+    assert draft.sources == []
+    assert "Sources:" not in draft.body
+    assert draft.body.startswith(body)
+
+
+async def test_declaring_use_of_results_without_citing_them_is_still_refused() -> None:
+    llm = FakeLLM(
+        PLAN, DraftContent(subject="s", body="Acme sells widgets.", uses_search_results=True)
+    )
+    service, _, drafts, cid = _setup(llm, FakeSearch([ACME]))
+    with pytest.raises(UngroundedDraftError):
+        await service.prepare(cid, TODAY)
+    assert drafts.list() == []
+
+
+async def test_a_repair_may_conclude_that_no_results_were_used() -> None:
+    llm = FakeLLM(
+        PLAN,
+        DraftContent(subject="s", body="Quick question?", uses_search_results=True),
+        DraftContent(subject="s", body="Quick question?", uses_search_results=False),
+    )
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    draft = await service.prepare(cid, TODAY)
+    assert llm.draft_calls == 2
+    assert draft.sources == []
