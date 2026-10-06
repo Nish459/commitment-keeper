@@ -86,7 +86,7 @@ class ExtractionService:
                 self._repo.add(
                     Commitment(
                         direction=item.direction,
-                        person=item.person.strip(),
+                        person=_sentence_case(item.person),
                         description=_sentence_case(item.description),
                         due=resolve_due(item.due_phrase, today),
                         source_id=source_id,

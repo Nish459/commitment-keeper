@@ -86,8 +86,9 @@ async def test_due_phrase_is_resolved_deterministically() -> None:
 async def test_description_is_saved_in_sentence_case() -> None:
     repo = SqliteCommitmentRepository(Database(":memory:"))
     item = _item("Priya will share the Q3 deck").model_copy(
-        update={"description": " share the deck"}
+        update={"description": " share the deck", "person": " the vendor"}
     )
     llm = FakeLLM(ExtractionResult(commitments=[item]))
     (saved,) = await ExtractionService(llm, repo).extract("note-1", NOTE, date(2026, 10, 6))
     assert saved.description == "Share the deck"
+    assert saved.person == "The vendor"
