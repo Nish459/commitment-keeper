@@ -116,6 +116,11 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
             </span>
           </label>
         )}
+        {pending && !email.enabled && (
+          <p className="note">
+            Sending is off. Add your SMTP settings to <code>.env</code> to send from here, or copy the email.
+          </p>
+        )}
         <div className="draft-buttons">
           {pending && email.enabled && (
             <button className="btn btn-primary" type="submit" disabled={working}>

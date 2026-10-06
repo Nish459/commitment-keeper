@@ -593,6 +593,12 @@
   background: var(--seal-wash);
   color: var(--seal);
 }
+.draft-actions code {
+  padding: 0.05rem 0.3rem;
+  background: var(--paper);
+  border-radius: 4px;
+  font: 400 0.85em var(--font-mono);
+}
 .draft-edit {
   display: grid;
   gap: var(--s-4);

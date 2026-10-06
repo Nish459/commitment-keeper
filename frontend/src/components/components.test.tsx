@@ -166,6 +166,7 @@ describe("Detail email sending", () => {
     expect(screen.queryByLabelText(/Send to/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send email" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByText(/Sending is off/)).toBeInTheDocument();
   });
 
   it("prefills the recipient from a remembered contact and sends on submit", async () => {
@@ -176,6 +177,7 @@ describe("Detail email sending", () => {
     });
     expect(screen.getByLabelText(/Send to/)).toHaveValue("priya@acme.com");
     expect(screen.getByText(/Kept can only email priya@acme.com, @corp.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sending is off/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Send email" }));
     expect(actions.approve).toHaveBeenCalledWith(1, "priya@acme.com");
