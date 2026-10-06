@@ -208,3 +208,17 @@ async def test_sweep_endpoint_drafts_everything_due_soon_and_reports_it(
 
     again = (await client.post("/api/sweep")).json()
     assert again["prepared"] == []
+
+
+async def test_week_check_returns_a_validated_review(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    for source in ("a", "b"):
+        await client.post("/api/notes", json={"source_id": source, "text": NOTE})
+
+    review = (await client.post("/api/week-check")).json()
+    assert review["summary"] == "A busy Friday."
+    assert review["concerns"][0]["commitment_ids"] == [1]  # the invented id 999 was dropped
+    assert review["suggested_order"] == [{"commitment_id": 1, "reason": "Due first"}]
+    assert review["model_used"] == "Nemotron 3 Ultra"

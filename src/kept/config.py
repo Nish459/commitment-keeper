@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     demo_session_minutes: int = 120
     demo_max_notes: int = 5
     demo_max_drafts: int = 10
+    demo_max_checks: int = 5
     demo_max_concurrent: int = 4
     demo_max_note_chars: int = 4000
 

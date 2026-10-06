@@ -222,3 +222,12 @@ async def test_normal_mode_is_unchanged_and_not_a_demo(tmp_path: Path) -> None:
         assert "set-cookie" not in response.headers
         assert (await client.get("/api/capabilities")).json()["demo"] is False
     await container.aclose()
+
+
+async def test_week_check_allowance_is_enforced(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, demo_max_checks=1)
+    manager = _manager(settings)
+    async with _client(settings, manager) as client:
+        assert (await client.post("/api/week-check")).status_code == 200
+        assert (await client.post("/api/week-check")).status_code == 429
+    await manager.aclose()

@@ -8,6 +8,7 @@ from kept.domain.errors import EmailError, SearchError
 from kept.domain.models import Direction, SearchResult, Tier
 from kept.services.extraction import ExtractedCommitment, ExtractionResult
 from kept.services.keeper import DraftContent, ResearchPlan
+from kept.services.planner import Concern, OrderedItem, WeekCheck
 
 NOTE = "I'll send Priya the competitor comparison by Friday."
 
@@ -28,6 +29,18 @@ class ScriptedLLM:
             ),
             ResearchPlan: ResearchPlan(queries=["competitors"]),
             DraftContent: DraftContent(subject="Comparison", body="Here it is [1]."),
+            WeekCheck: WeekCheck(
+                summary="A busy Friday.",
+                concerns=[
+                    Concern(
+                        commitment_ids=[1, 999],
+                        title="Friday crunch",
+                        explanation="Two promises land on the same day.",
+                        severity="high",
+                    )
+                ],
+                suggested_order=[OrderedItem(commitment_id=1, reason="Due first")],
+            ),
         }
         self.error: Exception | None = None
 

@@ -25,6 +25,7 @@ from kept.domain.models import Draft
 from kept.domain.ports import EmailSender, StructuredLLM, WebSearch
 from kept.services.extraction import ExtractionService
 from kept.services.keeper import KeeperService
+from kept.services.planner import PlannerService
 from kept.services.review import ReviewService
 from kept.services.sweep import SweepService
 
@@ -46,6 +47,7 @@ class Container:
     keeper: KeeperService
     review: ReviewService
     sweep: SweepService
+    planner: PlannerService
     today: Callable[[], date]
     guard: "DemoGuard | None" = None
 
@@ -112,6 +114,7 @@ def build_container(
         profile=profile,
         extraction=ExtractionService(structured_llm, commitments),
         keeper=keeper,
+        planner=PlannerService(structured_llm, commitments),
         sweep=SweepService(
             commitments,
             drafts,

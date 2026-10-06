@@ -15,6 +15,7 @@ from kept.domain.models import (
 )
 from kept.services.calendar import build_ics
 from kept.services.keeper import CommitmentNotFoundError
+from kept.services.planner import WeekCheck
 from kept.services.sweep import SweepResult
 
 router = APIRouter(prefix="/api")
@@ -84,6 +85,13 @@ async def prepare(commitment_id: int, c: Deps) -> Draft:
 async def sweep(c: Deps) -> SweepResult:
     """Draft everything that is overdue or due within three days and has no draft yet."""
     return await c.sweep.run(c.today())
+
+
+@router.post("/week-check")
+async def week_check(c: Deps) -> WeekCheck:
+    """Nemotron Ultra reviews every open promise for conflicts, dependencies and risks."""
+    async with c.guarded("checks"):
+        return await c.planner.check_week(c.today())
 
 
 @router.get("/drafts")
