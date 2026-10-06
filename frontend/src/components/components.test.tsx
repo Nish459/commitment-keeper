@@ -1,10 +1,11 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { commitment, draft, renderApp, TODAY } from "../testing";
 import { App } from "../App";
 import { DemoBanner } from "./DemoBanner";
+import { Composer } from "./Composer";
 import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
 import { WeekCheckPanel } from "./WeekCheckPanel";
@@ -433,5 +434,75 @@ describe("WeekCheckPanel", () => {
       weekCheck: { ...result, concerns: [], suggested_order: [] },
     });
     expect(screen.getByRole("heading", { name: "Nothing to worry about" })).toBeInTheDocument();
+  });
+});
+
+
+describe("Composer: adding a promise by hand", () => {
+  const open = { composer: { open: true, sample: false, mode: "hand" as const } };
+
+  it("opens on the by-hand tab when asked and saves exactly what was typed", async () => {
+    const { actions } = renderApp(<Composer />, open);
+    expect(screen.getByRole("tab", { name: "Add one by hand" })).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.type(screen.getByLabelText("Who is it for?"), "  priya ");
+    await userEvent.type(screen.getByLabelText("What was promised?"), "send the deck");
+    await userEvent.type(screen.getByLabelText("Due date (optional)"), "2026-10-09");
+    await userEvent.click(screen.getByRole("button", { name: "Add promise" }));
+
+    expect(actions.addPromise).toHaveBeenCalledWith({
+      direction: "owed_by_me",
+      person: "priya",
+      description: "send the deck",
+      due: "2026-10-09",
+    });
+    expect(actions.closeComposer).toHaveBeenCalled();
+  });
+
+  it("treats a blank due date as no deadline and can record what someone promised me", async () => {
+    const { actions } = renderApp(<Composer />, open);
+    await userEvent.click(screen.getByRole("radio", { name: "They did" }));
+    expect(screen.getByLabelText("Who promised you?")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Who promised you?"), "Marcus");
+    await userEvent.type(screen.getByLabelText("What was promised?"), "send the budget");
+    await userEvent.click(screen.getByRole("button", { name: "Add promise" }));
+
+    expect(actions.addPromise).toHaveBeenCalledWith({
+      direction: "owed_to_me",
+      person: "Marcus",
+      description: "send the budget",
+      due: null,
+    });
+  });
+
+  it("shows the server's reason inline and keeps the dialog open when adding fails", async () => {
+    const { actions } = renderApp(<Composer />, open);
+    vi.mocked(actions.addPromise).mockRejectedValueOnce(new Error("The demo's allowance is used up."));
+    await userEvent.type(screen.getByLabelText("Who is it for?"), "Priya");
+    await userEvent.type(screen.getByLabelText("What was promised?"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Add promise" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The demo's allowance is used up.");
+    expect(actions.closeComposer).not.toHaveBeenCalled();
+  });
+
+  it("switches between pasting notes and adding by hand", async () => {
+    renderApp(<Composer />, { composer: { open: true, sample: false, mode: "notes" } });
+    expect(screen.getByRole("button", { name: "Find promises" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Add one by hand" }));
+    expect(screen.getByRole("button", { name: "Add promise" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Find promises" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Detail for a promise added by hand", () => {
+  it("says it was added by hand instead of showing an empty quote", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ source_id: "Added by hand", source_quote: "" })],
+      selectedId: 1,
+    });
+    expect(screen.getByText("Added by hand")).toBeInTheDocument();
+    expect(document.querySelector("blockquote")).toBeNull();
   });
 });

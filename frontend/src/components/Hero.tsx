@@ -26,6 +26,9 @@ export function Hero() {
           <button className="btn btn-primary" type="button" onClick={() => actions.openComposer()}>
             Add notes
           </button>
+          <button className="btn btn-secondary" type="button" onClick={() => actions.openComposer({ mode: "hand" })}>
+            Add one by hand
+          </button>
           <button className="btn btn-quiet" type="button" onClick={() => actions.openComposer({ sample: true })}>
             Try a sample note
           </button>

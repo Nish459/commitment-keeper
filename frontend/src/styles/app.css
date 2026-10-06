@@ -1123,3 +1123,54 @@ tr.is-blocked td {
   background: rgb(20 33 61 / 0.08);
   color: var(--ink);
 }
+
+/* ---------- Composer tabs and the by-hand form ---------- */
+.tabs {
+  display: flex;
+  gap: var(--s-1);
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  padding: var(--s-2) var(--s-3);
+  margin-bottom: -1px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+.tab:hover:not(:disabled) {
+  color: var(--ink);
+}
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--cobalt);
+  color: var(--ink);
+  font-weight: 600;
+}
+.composer-panel {
+  display: grid;
+  gap: var(--s-4);
+}
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice legend {
+  margin-bottom: var(--s-1);
+  padding: 0;
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+.choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.provenance-plain {
+  color: var(--muted);
+  font-size: var(--step--1);
+}

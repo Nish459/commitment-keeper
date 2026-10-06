@@ -10,9 +10,10 @@ import {
 
 import { api } from "./api";
 import { plural, startOfToday } from "./format";
-import type { AuditEvent, Capabilities, Commitment, Draft, WeekCheck } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft, NewPromise, WeekCheck } from "./types";
 
 export type FilterId = "open" | "ready" | "done" | "all";
+export type ComposerMode = "notes" | "hand";
 
 export interface ToastMessage {
   id: number;
@@ -36,7 +37,7 @@ export interface State {
   loading: boolean;
   sealedId: number | null;
   perimeterOpen: boolean;
-  composer: { open: boolean; sample: boolean };
+  composer: { open: boolean; sample: boolean; mode: ComposerMode };
   toasts: ToastMessage[];
 }
 
@@ -61,7 +62,7 @@ export const initialState: State = {
   loading: true,
   sealedId: null,
   perimeterOpen: false,
-  composer: { open: false, sample: false },
+  composer: { open: false, sample: false, mode: "notes" },
   toasts: [],
 };
 
@@ -78,7 +79,7 @@ type Action =
   | { type: "sealed"; id: number | null }
   | { type: "perimeter"; open: boolean }
   | { type: "togglePerimeter" }
-  | { type: "composer"; open: boolean; sample?: boolean }
+  | { type: "composer"; open: boolean; sample?: boolean; mode?: ComposerMode }
   | { type: "toast"; toast: ToastMessage }
   | { type: "dismissToast"; id: number };
 
@@ -117,7 +118,14 @@ function reducer(state: State, action: Action): State {
     case "togglePerimeter":
       return { ...state, perimeterOpen: !state.perimeterOpen };
     case "composer":
-      return { ...state, composer: { open: action.open, sample: action.sample ?? false } };
+      return {
+        ...state,
+        composer: {
+          open: action.open,
+          sample: action.sample ?? false,
+          mode: action.mode ?? state.composer.mode,
+        },
+      };
     case "toast":
       return { ...state, toasts: [...state.toasts, action.toast] };
     case "dismissToast":
@@ -130,7 +138,7 @@ export interface Actions {
   setFilter: (filter: FilterId) => void;
   togglePerimeter: () => void;
   closePerimeter: () => void;
-  openComposer: (options?: { sample?: boolean }) => void;
+  openComposer: (options?: { sample?: boolean; mode?: ComposerMode }) => void;
   closeComposer: () => void;
   openProfile: () => void;
   closeProfile: () => void;
@@ -144,6 +152,7 @@ export interface Actions {
   approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
   ingest: (name: string, text: string) => Promise<void>;
+  addPromise: (promise: NewPromise) => Promise<void>;
   copy: (draft: Draft) => Promise<void>;
 }
 
@@ -214,7 +223,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFilter: (filter) => dispatch({ type: "filter", filter }),
       togglePerimeter: () => dispatch({ type: "togglePerimeter" }),
       closePerimeter: () => dispatch({ type: "perimeter", open: false }),
-      openComposer: (options) => dispatch({ type: "composer", open: true, sample: options?.sample }),
+      openComposer: (options) =>
+        dispatch({ type: "composer", open: true, sample: options?.sample, mode: options?.mode ?? "notes" }),
       closeComposer: () => dispatch({ type: "composer", open: false }),
       openProfile: () => dispatch({ type: "profileDialog", open: true }),
       closeProfile: () => dispatch({ type: "profileDialog", open: false }),
@@ -322,6 +332,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             await refresh();
           }, "Draft rejected."),
         ),
+
+      async addPromise(promise) {
+        const created = await api.addPromise(promise);
+        await refresh();
+        dispatch({ type: "select", id: created.id });
+        toast("Promise added.");
+      },
 
       async ingest(name, text) {
         const found = await api.ingest(name, text);

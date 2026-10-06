@@ -234,10 +234,14 @@ export function Detail() {
               )}
             </p>
           </header>
-          <figure className="provenance">
-            <blockquote>{quoteText(c.source_quote)}</blockquote>
-            <figcaption>From {c.source_id}</figcaption>
-          </figure>
+          {c.source_quote ? (
+            <figure className="provenance">
+              <blockquote>{quoteText(c.source_quote)}</blockquote>
+              <figcaption>From {c.source_id}</figcaption>
+            </figure>
+          ) : (
+            <p className="provenance provenance-plain">{c.source_id}</p>
+          )}
           <WorkArea c={c} draft={latestDraft(state.drafts, c.id)} />
         </div>
       )}

@@ -27,6 +27,7 @@ export function makeActions(): Actions {
     approve: vi.fn().mockResolvedValue(undefined),
     reject: vi.fn().mockResolvedValue(undefined),
     ingest: vi.fn().mockResolvedValue(undefined),
+    addPromise: vi.fn().mockResolvedValue(undefined),
     copy: vi.fn().mockResolvedValue(undefined),
   };
 }

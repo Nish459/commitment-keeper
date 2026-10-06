@@ -1,4 +1,4 @@
-import type { AuditEvent, Capabilities, Commitment, Draft, SweepResult, WeekCheck } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft, NewPromise, SweepResult, WeekCheck } from "./types";
 
 export class ApiError extends Error {}
 
@@ -33,6 +33,7 @@ const post = <T>(path: string, body?: unknown) =>
 
 export const api = {
   commitments: () => request<Commitment[]>("/api/commitments"),
+  addPromise: (promise: NewPromise) => post<Commitment>("/api/commitments", promise),
   drafts: () => request<Draft[]>("/api/drafts"),
   audit: () => request<AuditEvent[]>("/api/audit?limit=200"),
   unlockDemo: (code: string) => post<{ unlocked: boolean }>("/api/demo/access", { code }),

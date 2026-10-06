@@ -64,3 +64,10 @@ export interface WeekCheck {
   suggested_order: { commitment_id: number; reason: string }[];
   model_used: string | null;
 }
+
+export interface NewPromise {
+  direction: Direction;
+  person: string;
+  description: string;
+  due: string | null;
+}
