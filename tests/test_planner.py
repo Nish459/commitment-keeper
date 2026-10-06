@@ -72,10 +72,12 @@ async def test_it_asks_ultra_with_reasoning_left_on_and_gives_it_real_dates() ->
     system, user = call["messages"][0]["content"], call["messages"][1]["content"]
     assert "Tuesday 2026-10-06" in system
     assert (
-        "#1 | I owe Priya | Send comparison | due Fri 2026-10-09 (in 3 days) | status: open" in user
+        "#1 | I owe Priya | Send comparison | due Fri 2026-10-09 (in 3 days) | status: not started"
+        in user
     )
     assert "#2 | Priya owes me | Share deck | due Wed 2026-10-07 (in 1 day)" in user
     assert "(2 days overdue)" in user
+    assert "ready_for_review" not in user
     assert "no due date" in user
 
 

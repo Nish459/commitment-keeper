@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from kept.domain.models import Commitment, Direction, Tier
+from kept.domain.models import Commitment, CommitmentStatus, Direction, Tier
 from kept.domain.ports import CommitmentRepository, StructuredLLM
 
 MAX_PROMISES = 40
@@ -46,6 +46,13 @@ class WeekCheck(BaseModel):
     model_used: str | None = None  # None when no model call was needed
 
 
+_STATUS_WORDS = {
+    CommitmentStatus.OPEN: "not started",
+    CommitmentStatus.IN_PROGRESS: "in progress",
+    CommitmentStatus.READY_FOR_REVIEW: "draft ready, waiting for my approval",
+}
+
+
 def _describe(commitment: Commitment, today: date) -> str:
     who = (
         f"I owe {commitment.person}"
@@ -61,9 +68,8 @@ def _describe(commitment: Commitment, today: date) -> str:
             "today" if days == 0 else f"in {days} {unit}" if days > 0 else f"{-days} {unit} overdue"
         )
         due = f"due {commitment.due:%a %Y-%m-%d} ({when})"
-    return (
-        f"#{commitment.id} | {who} | {commitment.description} | {due} | status: {commitment.status}"
-    )
+    status = _STATUS_WORDS.get(commitment.status, commitment.status.value)
+    return f"#{commitment.id} | {who} | {commitment.description} | {due} | status: {status}"
 
 
 class PlannerService:
