@@ -1,11 +1,12 @@
 """What Kept remembers about each person: the history that makes a follow-up a follow-up."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from kept.domain.models import Commitment, CommitmentStatus, Direction, Draft, PersonSummary
 from kept.domain.ports import CommitmentRepository, DraftRepository
 
 _RECENT_EMAILS = 3
+_REMIND_WITHIN_DAYS = 3
 _OPEN_ITEMS = 4
 _CLOSED = (CommitmentStatus.DONE, CommitmentStatus.DROPPED)
 
@@ -90,6 +91,23 @@ class PeopleService:
             described = "; ".join(self._open_item(c, name) for c in open_items)
             lines.append(f"- Still open between you: {described}.")
         return f"History with {name}:\n" + "\n".join(lines) if lines else ""
+
+    def reminders_for(
+        self, name: str, today: date, exclude_id: int | None = None
+    ) -> list[Commitment]:
+        """Open promises they owe me that are overdue or due within a few days, soonest first."""
+        cutoff = today + timedelta(days=_REMIND_WITHIN_DAYS)
+        due_soon = [
+            c
+            for c in self._commitments.list()
+            if _key(c.person) == _key(name)
+            and c.direction is Direction.OWED_TO_ME
+            and c.id != exclude_id
+            and _is_open(c)
+            and c.due is not None
+            and c.due <= cutoff
+        ]
+        return sorted(due_soon, key=lambda c: (c.due or cutoff, c.id or 0))
 
     @staticmethod
     def _open_item(c: Commitment, name: str) -> str:

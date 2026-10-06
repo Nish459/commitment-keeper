@@ -166,6 +166,7 @@ async def test_prompts_forbid_invented_details_commitments_and_placeholders() ->
     await service.prepare(cid, TODAY)
     assert "Never add a location, date" in llm.plan_prompt
     assert "Never invent facts about me" in llm.last_system_prompt
+    assert "asked for, requested or is waiting for" in " ".join(llm.last_system_prompt.split())
     assert "Do not make new commitments" in llm.last_system_prompt
     assert "the signature is added automatically" in llm.last_system_prompt
     assert 'Start with "Hi Priya,"' in llm.last_system_prompt
@@ -357,20 +358,26 @@ def test_an_unknown_kind_is_rejected_by_validation_so_the_model_gets_a_repair_ro
 
 
 def _service_with_memory(
-    llm: FakeLLM, search: FakeSearch
+    llm: FakeLLM, search: FakeSearch, owed_due: date | None = None
 ) -> tuple[KeeperService, SqliteCommitmentRepository, SqliteDraftRepository, int, int]:
     """A keeper that remembers: Priya already has a kept promise, an email, and an open one."""
     db = Database(":memory:")
     commitments = SqliteCommitmentRepository(db)
     drafts = SqliteDraftRepository(db)
 
-    def promise(description: str, status: CommitmentStatus, direction: Direction) -> int:
+    def promise(
+        description: str,
+        status: CommitmentStatus,
+        direction: Direction,
+        due: date | None = None,
+    ) -> int:
         saved = commitments.add(
             Commitment(
                 direction=direction,
                 person="Priya",
                 description=description,
                 status=status,
+                due=due,
                 source_id="n",
                 source_quote="q",
             )
@@ -379,7 +386,7 @@ def _service_with_memory(
 
     current = promise("Send competitor comparison", CommitmentStatus.OPEN, Direction.OWED_BY_ME)
     earlier = promise("Review pricing page", CommitmentStatus.DONE, Direction.OWED_BY_ME)
-    promise("Share the Q3 deck", CommitmentStatus.OPEN, Direction.OWED_TO_ME)
+    promise("Share the Q3 deck", CommitmentStatus.OPEN, Direction.OWED_TO_ME, owed_due)
     old = drafts.add(Draft(commitment_id=earlier, subject="Pricing review", body="b"))
     drafts.set_sent(old.id or 0, "p@acme.com", datetime(2026, 10, 3, tzinfo=UTC))
     service = KeeperService(
@@ -400,6 +407,7 @@ async def test_the_draft_prompt_carries_history_with_the_person_and_rules_for_us
     assert "Send competitor comparison" not in llm.last_user_prompt.split("History with")[1]
     system = " ".join(llm.last_system_prompt.split())  # prompts are wrapped; compare ignoring that
     assert "A short history with Priya is included" in system
+    assert "this follows that email" in system
     assert "never turn it into a new commitment" in system
 
 
@@ -439,3 +447,35 @@ async def test_without_a_people_service_drafting_still_works() -> None:
     service, _, _, cid = _setup(llm, FakeSearch([ACME]))
     await service.prepare(cid, TODAY)
     assert "History with" not in llm.last_user_prompt
+
+
+async def test_a_postscript_reminds_about_what_they_still_owe_using_real_data() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, current, _ = _service_with_memory(
+        llm, FakeSearch([ACME]), owed_due=date(2026, 10, 9)
+    )
+    body = (await service.prepare(current, TODAY)).body
+    assert '\n\nBest,\n\nP.S. A gentle reminder: "Share the Q3 deck" is due 9 Oct.' in body
+    assert body.index("P.S.") < body.index("Sources:")  # after the signature, before the sources
+
+
+async def test_an_overdue_promise_is_called_overdue_and_a_far_off_one_is_left_alone() -> None:
+    late = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, current, _ = _service_with_memory(
+        late, FakeSearch([ACME]), owed_due=date(2026, 10, 5)
+    )
+    assert '"Share the Q3 deck" was due 5 Oct.' in (await service.prepare(current, TODAY)).body
+
+    far = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    other, _, _, current2, _ = _service_with_memory(
+        far, FakeSearch([ACME]), owed_due=date(2026, 11, 30)
+    )
+    assert "P.S." not in (await other.prepare(current2, TODAY)).body
+
+
+async def test_without_anything_owed_there_is_no_postscript() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, current, _ = _service_with_memory(
+        llm, FakeSearch([ACME])
+    )  # owed, but no due date
+    assert "P.S." not in (await service.prepare(current, TODAY)).body

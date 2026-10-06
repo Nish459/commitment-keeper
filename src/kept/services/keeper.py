@@ -61,6 +61,8 @@ Rules:
   that are not in the promise, my original words, or the search results.
 - Do not make new commitments or set new dates. Only restate the existing promise and its
   original deadline.
+- Do not say or imply that {person} asked for, requested or is waiting for anything, unless that
+  is in the promise or my original words.
 - Start with "Hi {person}," and say plainly what this email is about.
 - If the promise needs details you do not have (location, budget, headcount, dates), ask for each
   one in a short bulleted list. Never send a bare follow-up with no content or questions.
@@ -78,10 +80,10 @@ prices or decisions. You may only restate the promise, say it is still being wor
 that is explicitly in the promise text, and ask for any information needed to proceed."""
 
 _HISTORY_RULE = """
-A short history with {person} is included. Use it only to avoid repeating yourself (for example,
-say you are following up on an earlier email) or to briefly remind them of a promise they still
-owe you. Never state anything about the history that is not in it, and never turn it into a new
-commitment."""
+A short history with {person} is included. Use it like this:
+- If it lists an earlier email, say in the first line that this follows that email, by its subject.
+- Never state anything about the history that is not in it, and never turn it into a new
+  commitment."""
 
 _REPAIR_PROMPT = (
     "Your draft cites no sources. Rewrite it so every fact taken from the search results ends "
@@ -95,6 +97,18 @@ _SIGNOFF = re.compile(
     r"[,!.]?[ \t]*(?:\n[^\n]{0,60})?\s*$",
     re.IGNORECASE,
 )
+
+
+def _postscript(reminders: list[Commitment], today: date) -> str:
+    """A P.S. built from real data, so a reminder is never invented or forgotten."""
+    if not reminders:
+        return ""
+    parts = []
+    for c in reminders:
+        assert c.due is not None
+        verb = "was due" if c.due < today else "is due"
+        parts.append(f'"{c.description}" {verb} {c.due:%-d %b}')
+    return "\n\nP.S. A gentle reminder: " + "; ".join(parts) + "."
 
 
 def _sign(body: str, name: str) -> str:
@@ -180,6 +194,10 @@ class KeeperService:
         cited = sorted({int(n) for n in _CITATION.findall(content.body)} & numbered.keys())
         sources = [numbered[n] for n in cited]
         body = _sign(content.body, self._signature().strip())
+        if self._people:
+            body += _postscript(
+                self._people.reminders_for(commitment.person, today, commitment_id), today
+            )
         if sources:
             listing = "\n".join(f"[{n}] {numbered[n]}" for n in cited)
             body = f"{body}\n\nSources:\n{listing}"

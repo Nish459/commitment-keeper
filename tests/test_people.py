@@ -137,3 +137,29 @@ async def test_the_people_endpoint_summarises_everyone_in_the_workspace(
     await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})
     people = (await client.get("/api/people")).json()
     assert [(p["name"], p["open_by_me"], p["emails_sent"]) for p in people] == [("Priya", 1, 0)]
+
+
+def test_reminders_are_only_what_they_owe_me_and_is_due_soon_or_overdue() -> None:
+    env = Env()
+    current = env.promise("Priya", "Mine to do")
+    overdue = env.promise(
+        "Priya", "Late thing", direction=Direction.OWED_TO_ME, due=date(2026, 10, 1)
+    )
+    soon = env.promise(
+        "Priya", "Soon thing", direction=Direction.OWED_TO_ME, due=date(2026, 10, 10)
+    )
+    env.promise("Priya", "Far off", direction=Direction.OWED_TO_ME, due=date(2026, 10, 11))
+    env.promise("Priya", "No date", direction=Direction.OWED_TO_ME)
+    env.promise(
+        "Priya",
+        "Already done",
+        direction=Direction.OWED_TO_ME,
+        status=CommitmentStatus.DONE,
+        due=date(2026, 10, 8),
+    )
+    env.promise("Priya", "I owe this", due=date(2026, 10, 8))
+    env.promise("Marcus", "Not Priya's", direction=Direction.OWED_TO_ME, due=date(2026, 10, 8))
+
+    reminders = env.service.reminders_for("priya", TODAY, exclude_id=current)
+
+    assert [c.id for c in reminders] == [overdue, soon]  # soonest first, the horizon is 3 days
