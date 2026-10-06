@@ -4,10 +4,11 @@ import asyncio
 import smtplib
 import ssl
 import time
+from collections.abc import Sequence
 from email.message import EmailMessage
 
 from kept.domain.errors import EmailError
-from kept.domain.models import AuditEvent
+from kept.domain.models import Attachment, AuditEvent
 from kept.domain.ports import AuditSink
 
 
@@ -29,12 +30,20 @@ class SmtpEmailSender:
         self._sender = sender
         self._sink = sink
 
-    async def send(self, to: str, subject: str, body: str) -> None:
+    async def send(
+        self, to: str, subject: str, body: str, attachments: Sequence[Attachment] = ()
+    ) -> None:
         message = EmailMessage()
         message["From"] = self._sender
         message["To"] = to
         message["Subject"] = subject
         message.set_content(body)
+        for attachment in attachments:
+            kind = attachment.content_type if "/" in attachment.content_type else ""
+            maintype, _, subtype = (kind or "application/octet-stream").partition("/")
+            message.add_attachment(
+                attachment.data, maintype=maintype, subtype=subtype, filename=attachment.filename
+            )
 
         event = AuditEvent(
             method="SMTP", host=self._host.lower(), path="/send", bytes_out=len(message.as_bytes())

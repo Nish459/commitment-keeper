@@ -8,7 +8,7 @@ import pytest
 from kept.adapters.smtp import SmtpEmailSender
 from kept.config import Settings
 from kept.domain.errors import EmailError
-from kept.domain.models import AuditEvent
+from kept.domain.models import Attachment, AuditEvent
 from kept.domain.recipients import is_recipient_allowed, normalize_address
 
 
@@ -144,3 +144,30 @@ async def test_send_failure_is_audited_and_raised() -> None:
         await _sender(sink).send("priya@acme.com", "s", "b")
     (event,) = sink.events
     assert event.status_code is None
+
+
+async def test_attachments_become_real_mime_parts_with_the_right_name_and_type() -> None:
+    sink = ListSink()
+    files = [
+        Attachment(
+            draft_id=1, filename="roadmap.pdf", content_type="application/pdf", size=4, data=b"%PDF"
+        ),
+        Attachment(
+            draft_id=1, filename="notes.txt", content_type="text/plain", size=5, data=b"hello"
+        ),
+        Attachment(draft_id=1, filename="blob", content_type="oddball", size=2, data=b"\x00\x01"),
+    ]
+    await _sender(sink).send("zoe@acme.com", "Q4 roadmap", "Attached.", files)
+
+    (message,) = FakeSmtp.sent
+    parts = list(message.iter_attachments())
+    assert [(p.get_filename(), p.get_content_type()) for p in parts] == [
+        ("roadmap.pdf", "application/pdf"),
+        ("notes.txt", "text/plain"),
+        ("blob", "application/octet-stream"),
+    ]
+    assert parts[0].get_payload(decode=True) == b"%PDF"
+    assert parts[2].get_payload(decode=True) == b"\x00\x01"
+    assert message.get_body().get_content().strip() == "Attached."  # type: ignore[union-attr]
+    (event,) = sink.events
+    assert event.bytes_out > 11  # the files count towards what left the machine

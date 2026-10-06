@@ -7,6 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from kept.domain.models import (
+    Attachment,
     AuditEvent,
     Commitment,
     CommitmentStatus,
@@ -38,6 +39,14 @@ CREATE TABLE IF NOT EXISTS drafts (
     sent_to TEXT,
     sent_at TEXT,
     needs_attachment INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    draft_id INTEGER NOT NULL REFERENCES drafts(id),
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    data BLOB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS contacts (
     person TEXT PRIMARY KEY,
@@ -226,6 +235,47 @@ class SqliteDraftRepository:
             "UPDATE drafts SET sent_to = ?, sent_at = ? WHERE id = ?",
             (to, at.isoformat(), draft_id),
         )
+
+
+class SqliteAttachmentRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def add(self, attachment: Attachment) -> Attachment:
+        cursor = self._db.execute(
+            "INSERT INTO attachments (draft_id, filename, content_type, size, data)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (
+                attachment.draft_id,
+                attachment.filename,
+                attachment.content_type,
+                attachment.size,
+                attachment.data,
+            ),
+        )
+        return attachment.model_copy(update={"id": cursor.lastrowid})
+
+    def for_draft(self, draft_id: int) -> list[Attachment]:
+        rows = self._db.query(
+            "SELECT * FROM attachments WHERE draft_id = ? ORDER BY id", (draft_id,)
+        )
+        return [
+            Attachment(
+                id=row["id"],
+                draft_id=row["draft_id"],
+                filename=row["filename"],
+                content_type=row["content_type"],
+                size=row["size"],
+                data=bytes(row["data"]),
+            )
+            for row in rows
+        ]
+
+    def remove(self, draft_id: int, attachment_id: int) -> bool:
+        cursor = self._db.execute(
+            "DELETE FROM attachments WHERE id = ? AND draft_id = ?", (attachment_id, draft_id)
+        )
+        return cursor.rowcount > 0
 
 
 class SqliteContactRepository:

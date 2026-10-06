@@ -1,9 +1,11 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Protocol
 
 from pydantic import BaseModel
 
 from kept.domain.models import (
+    Attachment,
     AuditEvent,
     Commitment,
     CommitmentStatus,
@@ -29,7 +31,17 @@ class WebSearch(Protocol):
 
 
 class EmailSender(Protocol):
-    async def send(self, to: str, subject: str, body: str) -> None: ...
+    async def send(
+        self, to: str, subject: str, body: str, attachments: Sequence[Attachment] = ()
+    ) -> None: ...
+
+
+class AttachmentRepository(Protocol):
+    def add(self, attachment: Attachment) -> Attachment: ...
+
+    def for_draft(self, draft_id: int) -> list[Attachment]: ...
+
+    def remove(self, draft_id: int, attachment_id: int) -> bool: ...
 
 
 class AuditSink(Protocol):

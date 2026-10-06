@@ -1,15 +1,29 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 import pytest
 
 from kept.adapters.sqlite import (
     Database,
+    SqliteAttachmentRepository,
     SqliteCommitmentRepository,
     SqliteContactRepository,
     SqliteDraftRepository,
 )
-from kept.domain.errors import EmailError, EmailNotConfiguredError, RecipientNotAllowedError
-from kept.domain.models import Commitment, CommitmentStatus, Direction, Draft, DraftStatus
+from kept.domain.errors import (
+    AttachmentRequiredError,
+    EmailError,
+    EmailNotConfiguredError,
+    RecipientNotAllowedError,
+)
+from kept.domain.models import (
+    Attachment,
+    Commitment,
+    CommitmentStatus,
+    Direction,
+    Draft,
+    DraftStatus,
+)
 from kept.services.review import DraftAlreadyReviewedError, DraftNotFoundError, ReviewService
 
 NOW = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
@@ -19,24 +33,35 @@ class FakeSender:
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
         self.sent: list[tuple[str, str, str]] = []
+        self.files: list[list[str]] = []
 
-    async def send(self, to: str, subject: str, body: str) -> None:
+    async def send(
+        self, to: str, subject: str, body: str, attachments: Sequence[Attachment] = ()
+    ) -> None:
         if self.fail:
             raise EmailError("Sending failed: refused")
         self.sent.append((to, subject, body))
+        self.files.append([a.filename for a in attachments])
 
 
 class Env:
-    def __init__(self, sender: FakeSender | None = None, allowed: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        sender: FakeSender | None = None,
+        allowed: tuple[str, ...] = (),
+        needs_attachment: bool = False,
+    ) -> None:
         db = Database(":memory:")
         self.commitments = SqliteCommitmentRepository(db)
         self.drafts = SqliteDraftRepository(db)
         self.contacts = SqliteContactRepository(db)
+        self.attachments = SqliteAttachmentRepository(db)
         self.sender = sender
         self.service = ReviewService(
             self.commitments,
             self.drafts,
             self.contacts,
+            self.attachments,
             sender=sender,
             sender_address="me@example.com",
             allowed_recipients=allowed,
@@ -52,7 +77,14 @@ class Env:
                 source_quote="q",
             )
         )
-        draft = self.drafts.add(Draft(commitment_id=commitment.id or 0, subject="S", body="B"))
+        draft = self.drafts.add(
+            Draft(
+                commitment_id=commitment.id or 0,
+                subject="S",
+                body="B",
+                needs_attachment=needs_attachment,
+            )
+        )
         self.commitment_id = commitment.id or 0
         self.draft_id = draft.id or 0
 
@@ -148,3 +180,33 @@ async def test_edit_is_refused_once_reviewed_or_unknown() -> None:
         env.service.edit(env.draft_id, "s", "b")
     with pytest.raises(DraftNotFoundError):
         env.service.edit(999, "s", "b")
+
+
+async def test_an_email_that_says_attached_is_not_sent_without_the_file() -> None:
+    sender = FakeSender()
+    env = Env(sender, allowed=("priya@acme.com",), needs_attachment=True)
+    with pytest.raises(AttachmentRequiredError):
+        await env.service.approve(env.draft_id, "priya@acme.com")
+    assert sender.sent == []
+    assert env.commitment_status() is CommitmentStatus.READY_FOR_REVIEW
+
+
+async def test_the_attached_files_travel_with_the_email() -> None:
+    sender = FakeSender()
+    env = Env(sender, allowed=("priya@acme.com",), needs_attachment=True)
+    env.attachments.add(
+        Attachment(
+            draft_id=env.draft_id,
+            filename="roadmap.pdf",
+            content_type="application/pdf",
+            size=3,
+            data=b"pdf",
+        )
+    )
+    await env.service.approve(env.draft_id, "priya@acme.com")
+    assert sender.files == [["roadmap.pdf"]]
+
+
+async def test_approving_without_sending_never_needs_the_file() -> None:
+    env = Env(FakeSender(), needs_attachment=True)
+    assert (await env.service.approve(env.draft_id)).status is DraftStatus.APPROVED

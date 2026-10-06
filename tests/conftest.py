@@ -8,6 +8,7 @@ from kept.adapters.sqlite import Database
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.container import build_container
+from kept.services.keeper import DraftContent, ResearchPlan
 from tests.fakes import FakeSearch, FakeSender, ScriptedLLM
 
 
@@ -40,6 +41,35 @@ async def email_env() -> AsyncIterator[tuple[httpx.AsyncClient, FakeSender]]:
             email_allowed_recipients=["priya@acme.com"],
         ),
         llm=ScriptedLLM(),
+        search=FakeSearch(),
+        db=Database(":memory:"),
+        email=sender,
+        today=lambda: date(2026, 10, 7),
+    )
+    transport = httpx.ASGITransport(app=create_app(container))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, sender
+    await container.aclose()
+
+
+@pytest.fixture
+async def attach_env() -> AsyncIterator[tuple[httpx.AsyncClient, FakeSender]]:
+    """Email is on, and every promise is one that sends an existing file (needs an attachment)."""
+    sender, llm = FakeSender(), ScriptedLLM()
+    llm.responses[ResearchPlan] = ResearchPlan(kind="send_file")
+    llm.responses[DraftContent] = DraftContent(
+        subject="Q4 roadmap",
+        body="Hi Zoe,\n\nThe Q4 roadmap is attached.",
+        uses_search_results=False,
+    )
+    container = build_container(
+        Settings(
+            _env_file=None,
+            smtp_host="smtp.example.com",
+            email_from="me@example.com",
+            email_allowed_recipients=["zoe@acme.com"],
+        ),
+        llm=llm,
         search=FakeSearch(),
         db=Database(":memory:"),
         email=sender,

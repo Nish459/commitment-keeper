@@ -14,9 +14,11 @@ from kept.container import Container, build_container
 from kept.demo import COOKIE_NAME, SessionManager, build_session_manager
 from kept.domain.errors import (
     AccessDeniedError,
+    AttachmentRequiredError,
     DemoLimitError,
     EmailError,
     EmailNotConfiguredError,
+    InvalidAttachmentError,
     NoDueDateError,
     RecipientNotAllowedError,
     SearchError,
@@ -34,6 +36,8 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     SearchError: 502,
     UngroundedDraftError: 502,
     AccessDeniedError: 403,
+    AttachmentRequiredError: 409,
+    InvalidAttachmentError: 422,
     DemoLimitError: 429,
     EmailNotConfiguredError: 409,
     NoDueDateError: 409,

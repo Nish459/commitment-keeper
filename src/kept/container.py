@@ -13,6 +13,7 @@ from kept.adapters.llm import LLMClient
 from kept.adapters.smtp import SmtpEmailSender
 from kept.adapters.sqlite import (
     Database,
+    SqliteAttachmentRepository,
     SqliteAuditSink,
     SqliteCommitmentRepository,
     SqliteContactRepository,
@@ -23,6 +24,7 @@ from kept.adapters.tavily import TavilySearch
 from kept.config import Settings
 from kept.domain.models import Draft
 from kept.domain.ports import EmailSender, StructuredLLM, WebSearch
+from kept.services.attachments import AttachmentService
 from kept.services.extraction import ExtractionService
 from kept.services.keeper import KeeperService
 from kept.services.manual import ManualEntryService
@@ -49,6 +51,7 @@ class Container:
     review: ReviewService
     sweep: SweepService
     manual: ManualEntryService
+    attachments: AttachmentService
     planner: PlannerService
     today: Callable[[], date]
     guard: "DemoGuard | None" = None
@@ -81,6 +84,7 @@ def build_container(
     drafts = SqliteDraftRepository(database)
     contacts = SqliteContactRepository(database)
     profile = SqliteProfileRepository(database)
+    attachment_files = SqliteAttachmentRepository(database)
     structured_llm = llm or LLMClient(settings, http)
     web_search = search or TavilySearch(settings.tavily_api_key.get_secret_value(), http)
     sender = email
@@ -118,6 +122,7 @@ def build_container(
         keeper=keeper,
         planner=PlannerService(structured_llm, commitments),
         manual=ManualEntryService(commitments),
+        attachments=AttachmentService(drafts, attachment_files),
         sweep=SweepService(
             commitments,
             drafts,
@@ -129,6 +134,7 @@ def build_container(
             commitments,
             drafts,
             contacts,
+            attachment_files,
             sender=sender,
             sender_address=settings.email_from,
             allowed_recipients=settings.email_allowed_recipients,

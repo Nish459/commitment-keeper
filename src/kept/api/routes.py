@@ -1,11 +1,13 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field, StringConstraints
 
 from kept.container import Container
+from kept.domain.errors import EmailNotConfiguredError
 from kept.domain.models import (
+    Attachment,
     AuditEvent,
     Commitment,
     CommitmentStatus,
@@ -14,6 +16,7 @@ from kept.domain.models import (
     DraftStatus,
     utcnow,
 )
+from kept.services.attachments import MAX_FILE_BYTES
 from kept.services.calendar import build_ics
 from kept.services.keeper import CommitmentNotFoundError
 from kept.services.planner import WeekCheck
@@ -133,6 +136,33 @@ async def approve(draft_id: int, c: Deps, body: ApproveIn | None = None) -> Draf
 @router.post("/drafts/{draft_id}/reject")
 def reject(draft_id: int, c: Deps) -> Draft:
     return c.review.reject(draft_id)
+
+
+def _require_email(c: Container) -> None:
+    if not c.settings.email_enabled:
+        raise EmailNotConfiguredError(
+            "Attachments are only used when sending email, which isn't set up here."
+        )
+
+
+@router.get("/drafts/{draft_id}/attachments")
+def list_attachments(draft_id: int, c: Deps) -> list[Attachment]:
+    return c.attachments.list(draft_id)
+
+
+@router.post("/drafts/{draft_id}/attachments", status_code=201)
+async def add_attachment(draft_id: int, file: UploadFile, c: Deps) -> Attachment:
+    """Attach a file to a pending draft. It is only ever sent with that draft's email."""
+    _require_email(c)
+    data = await file.read(MAX_FILE_BYTES + 1)  # one byte over the limit is enough to refuse it
+    return c.attachments.add(draft_id, file.filename or "attachment", file.content_type, data)
+
+
+@router.delete("/drafts/{draft_id}/attachments/{attachment_id}", status_code=204)
+def remove_attachment(draft_id: int, attachment_id: int, c: Deps) -> Response:
+    if not c.attachments.remove(draft_id, attachment_id):
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    return Response(status_code=204)
 
 
 @router.get("/audit")

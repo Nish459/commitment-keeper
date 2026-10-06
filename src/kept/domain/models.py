@@ -71,6 +71,17 @@ class Draft(BaseModel):
     needs_attachment: bool = False
 
 
+class Attachment(BaseModel):
+    """A file the user adds to a draft. The bytes never leave the server in API responses."""
+
+    id: int | None = None
+    draft_id: int
+    filename: str
+    content_type: str
+    size: int
+    data: bytes = Field(default=b"", exclude=True, repr=False)
+
+
 class AuditEvent(BaseModel):
     """One outbound request attempt. Never contains bodies, queries or credentials."""
 

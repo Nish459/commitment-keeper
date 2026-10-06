@@ -3,9 +3,19 @@
 from collections.abc import Callable, Collection
 from datetime import datetime
 
-from kept.domain.errors import EmailNotConfiguredError, RecipientNotAllowedError
+from kept.domain.errors import (
+    AttachmentRequiredError,
+    EmailNotConfiguredError,
+    RecipientNotAllowedError,
+)
 from kept.domain.models import CommitmentStatus, Draft, DraftStatus, utcnow
-from kept.domain.ports import CommitmentRepository, ContactRepository, DraftRepository, EmailSender
+from kept.domain.ports import (
+    AttachmentRepository,
+    CommitmentRepository,
+    ContactRepository,
+    DraftRepository,
+    EmailSender,
+)
 from kept.domain.recipients import is_recipient_allowed, normalize_address
 
 
@@ -23,6 +33,7 @@ class ReviewService:
         commitments: CommitmentRepository,
         drafts: DraftRepository,
         contacts: ContactRepository,
+        attachments: AttachmentRepository,
         *,
         sender: EmailSender | None = None,
         sender_address: str = "",
@@ -32,6 +43,7 @@ class ReviewService:
         self._commitments = commitments
         self._drafts = drafts
         self._contacts = contacts
+        self._attachments = attachments
         self._sender = sender
         self._sender_address = sender_address
         self._allowed = tuple(allowed_recipients)
@@ -79,7 +91,13 @@ class ReviewService:
             raise RecipientNotAllowedError(
                 f"Kept isn't allowed to email {to}. Add it to KEPT_EMAIL_ALLOWED_RECIPIENTS first."
             )
-        await self._sender.send(address, draft.subject, draft.body)
+        files = self._attachments.for_draft(draft.id or 0)
+        if draft.needs_attachment and not files:
+            raise AttachmentRequiredError(
+                "This email says a file is attached. Add the file first, "
+                "or approve without sending."
+            )
+        await self._sender.send(address, draft.subject, draft.body, files)
         assert draft.id is not None
         self._drafts.set_sent(draft.id, address, self._clock())
         commitment = self._commitments.get(draft.commitment_id)

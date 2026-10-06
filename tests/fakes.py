@@ -1,11 +1,12 @@
 """Shared test doubles: a scripted model, a fake web search and a fake mailer."""
 
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import BaseModel
 
 from kept.domain.errors import EmailError, SearchError
-from kept.domain.models import Direction, SearchResult, Tier
+from kept.domain.models import Attachment, Direction, SearchResult, Tier
 from kept.services.extraction import ExtractedCommitment, ExtractionResult
 from kept.services.keeper import DraftContent, ResearchPlan
 from kept.services.planner import Concern, OrderedItem, WeekCheck
@@ -68,9 +69,13 @@ class FakeSearch:
 class FakeSender:
     def __init__(self) -> None:
         self.sent: list[str] = []
+        self.files: list[list[str]] = []
         self.fail = False
 
-    async def send(self, to: str, subject: str, body: str) -> None:
+    async def send(
+        self, to: str, subject: str, body: str, attachments: Sequence[Attachment] = ()
+    ) -> None:
         if self.fail:
             raise EmailError("Sending failed: refused")
         self.sent.append(to)
+        self.files.append([a.filename for a in attachments])

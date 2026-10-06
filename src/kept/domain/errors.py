@@ -24,3 +24,11 @@ class NoDueDateError(Exception):
 
 class AccessDeniedError(Exception):
     """The access code was wrong."""
+
+
+class InvalidAttachmentError(Exception):
+    """The file cannot be attached: too big, too many, or a type email providers reject."""
+
+
+class AttachmentRequiredError(Exception):
+    """The email says a file is attached, but none has been added."""
