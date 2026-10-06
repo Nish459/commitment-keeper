@@ -227,6 +227,11 @@ export function Detail() {
                 {SEAL_LABEL[c.status]}
               </span>
               <span className={isOverdue(c, today) ? "is-overdue" : undefined}>{dueLabel(c.due, today)}</span>
+              {c.due && (
+                <a className="calendar-link" href={`/api/commitments/${c.id}/calendar.ics`} download>
+                  Add to calendar
+                </a>
+              )}
             </p>
           </header>
           <figure className="provenance">

@@ -145,6 +145,20 @@ describe("Detail", () => {
   });
 });
 
+describe("Detail calendar link", () => {
+  it("offers a calendar download for a promise with a due date", () => {
+    renderApp(<Detail />, { commitments: [commitment({ id: 7 })], selectedId: 7 });
+    const link = screen.getByRole("link", { name: "Add to calendar" });
+    expect(link).toHaveAttribute("href", "/api/commitments/7/calendar.ics");
+    expect(link).toHaveAttribute("download");
+  });
+
+  it("offers nothing when there is no due date", () => {
+    renderApp(<Detail />, { commitments: [commitment({ due: null })], selectedId: 1 });
+    expect(screen.queryByRole("link", { name: "Add to calendar" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Detail draft editing", () => {
   const pending = {
     commitments: [commitment({ status: "ready_for_review" })],
