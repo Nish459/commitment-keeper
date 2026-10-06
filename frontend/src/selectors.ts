@@ -36,3 +36,14 @@ export function sweepCandidates(commitments: Commitment[], drafts: Draft[], toda
       latestDraft(drafts, c.id)?.status !== "rejected",
   );
 }
+
+/** Lowercase and drop accents, so "zoë" is found by "zoe". */
+const fold = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Every word typed must appear in the person's name or in the promise. An empty query matches all. */
+export function matchesQuery(c: Commitment, query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const haystack = fold(`${c.person} ${c.description}`);
+  return words.every((word) => haystack.includes(word));
+}

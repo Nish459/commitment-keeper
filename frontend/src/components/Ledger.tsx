@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+
 import { dueLabel, plural } from "../format";
-import { byDue, directionLabel, isClosed, isOverdue } from "../selectors";
+import { byDue, directionLabel, isClosed, isOverdue, matchesQuery } from "../selectors";
 import { useApp, type FilterId } from "../state";
 import type { Commitment } from "../types";
 import { Seal, SEAL_LABEL } from "./Seal";
@@ -38,8 +40,26 @@ function Row({ c }: { c: Commitment }) {
 
 export function Ledger() {
   const { state, actions } = useApp();
+  const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
   const active = FILTERS.find((f) => f.id === state.filter) ?? FILTERS[0]!;
-  const filtered = state.commitments.filter(active.test).sort(byDue);
+  const matching = state.commitments.filter((c) => matchesQuery(c, query));
+  const filtered = matching.filter(active.test).sort(byDue);
+  const searching = query.trim().length > 0;
+
+  // "/" jumps to the search box, like most tools, unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing = target?.closest("input, textarea, select, [contenteditable]");
+      if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        search.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const groups = new Map<string, Commitment[]>();
   for (const c of filtered) groups.set(c.person, [...(groups.get(c.person) ?? []), c]);
@@ -58,17 +78,51 @@ export function Ledger() {
               onClick={() => actions.setFilter(f.id)}
             >
               {f.label}
-              <span className="chip-count">{state.commitments.filter(f.test).length}</span>
+              <span className="chip-count">{matching.filter(f.test).length}</span>
             </button>
           ))}
         </div>
       </div>
 
+      <div className="ledger-search">
+        <label className="visually-hidden" htmlFor="ledger-search">
+          Search the ledger
+        </label>
+        <input
+          id="ledger-search"
+          ref={search}
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Search by name or promise"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && query) {
+              event.stopPropagation();
+              setQuery("");
+            }
+          }}
+        />
+        {searching && (
+          <button className="btn btn-quiet" type="button" onClick={() => setQuery("")}>
+            Clear
+          </button>
+        )}
+        <p className="search-status" role="status">
+          {searching ? `${plural(filtered.length, "promise")} shown for "${query.trim()}".` : ""}
+        </p>
+      </div>
+
       {groups.size === 0 ? (
         <p className="empty">
-          {state.commitments.length
-            ? `No ${active.label.toLowerCase()} promises. ${plural(state.commitments.length, "promise")} tracked in total.`
-            : "Promises Kept finds will be listed here, grouped by person."}
+          {searching
+            ? `No ${active.label.toLowerCase()} promises match "${query.trim()}".${
+                matching.length ? " Try the All filter." : " Try a name or part of a promise."
+              }`
+            : state.commitments.length
+              ? `No ${active.label.toLowerCase()} promises. ${plural(state.commitments.length, "promise")} tracked in total.`
+              : "Promises Kept finds will be listed here, grouped by person."}
         </p>
       ) : (
         [...groups].map(([person, items]) => {

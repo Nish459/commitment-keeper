@@ -605,3 +605,83 @@ describe("Attachments", () => {
     expect(screen.queryByLabelText("Choose files to attach")).not.toBeInTheDocument();
   });
 });
+
+
+describe("Ledger search", () => {
+  const promises = [
+    commitment({ id: 1, person: "Priya", description: "Send the comparison" }),
+    commitment({ id: 2, person: "Priya", description: "Share the Q3 deck", direction: "owed_to_me" }),
+    commitment({ id: 3, person: "Marcus", description: "Review the onboarding doc" }),
+    commitment({ id: 4, person: "Marcus", description: "Send the budget", status: "done" }),
+  ];
+  const shown = () => screen.queryAllByRole("button", { name: /^(Send|Share|Review)/ });
+
+  it("filters by a person's name and keeps the group headings honest", async () => {
+    renderApp(<Ledger />, { commitments: promises, filter: "all" });
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search the ledger" }), "marc");
+    expect(screen.queryByRole("heading", { name: /Priya/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Marcus/ })).toBeInTheDocument();
+    expect(shown()).toHaveLength(2);
+  });
+
+  it("matches the promise text too, and needs every word to match", async () => {
+    renderApp(<Ledger />, { commitments: promises, filter: "all" });
+    const box = screen.getByRole("searchbox");
+    await userEvent.type(box, "budget");
+    expect(shown()).toHaveLength(1);
+    await userEvent.clear(box);
+    await userEvent.type(box, "marcus send");
+    expect(shown()).toHaveLength(1);
+    await userEvent.clear(box);
+    await userEvent.type(box, "priya review");
+    expect(shown()).toHaveLength(0);
+  });
+
+  it("recounts the filter chips for what matches, and announces the result", async () => {
+    renderApp(<Ledger />, { commitments: promises, filter: "all" });
+    expect(screen.getByRole("button", { name: /^Kept\s*1$/ })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("searchbox"), "priya");
+    expect(screen.getByRole("button", { name: /^Kept\s*0$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^All\s*2$/ })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent('2 promises shown for "priya".');
+  });
+
+  it("explains an empty result and points to the All filter when it is only the status hiding it", async () => {
+    renderApp(<Ledger />, { commitments: promises, filter: "done" });
+    await userEvent.type(screen.getByRole("searchbox"), "priya");
+    expect(screen.getByText(/No kept promises match "priya". Try the All filter./)).toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("searchbox"));
+    await userEvent.type(screen.getByRole("searchbox"), "zzz");
+    expect(screen.getByText(/Try a name or part of a promise/)).toBeInTheDocument();
+  });
+
+  it("clears with the button and with Escape", async () => {
+    renderApp(<Ledger />, { commitments: promises, filter: "all" });
+    const box = screen.getByRole("searchbox");
+    await userEvent.type(box, "priya");
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(box).toHaveValue("");
+    expect(shown()).toHaveLength(4);
+
+    await userEvent.type(box, "marcus{Escape}");
+    expect(box).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+  });
+
+  it("focuses the search box with / unless the user is already typing", async () => {
+    renderApp(
+      <>
+        <input aria-label="elsewhere" />
+        <Ledger />
+      </>,
+      { commitments: promises },
+    );
+    await userEvent.keyboard("/");
+    expect(screen.getByRole("searchbox")).toHaveFocus();
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+
+    await userEvent.click(screen.getByLabelText("elsewhere"));
+    await userEvent.keyboard("/");
+    expect(screen.getByLabelText("elsewhere")).toHaveValue("/");
+  });
+});
