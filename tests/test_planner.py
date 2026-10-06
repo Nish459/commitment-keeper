@@ -71,6 +71,8 @@ async def test_it_asks_ultra_with_reasoning_left_on_and_gives_it_real_dates() ->
     assert "thinking" not in call["kwargs"]  # the whole point of Ultra here is to reason
     system, user = call["messages"][0]["content"], call["messages"][1]["content"]
     assert "Tuesday 2026-10-06" in system
+    assert "Never write ids" in system
+    assert 'saying "you"' in system
     assert (
         "#1 | I owe Priya | Send comparison | due Fri 2026-10-09 (in 3 days) | status: not started"
         in user

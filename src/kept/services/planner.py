@@ -24,7 +24,10 @@ Reply with JSON only:
   needs something someone owes me that arrives late or not at all), or promises likely to slip.
   Use only ids from the list. Return an empty list when nothing is wrong.
 - suggested_order: only promises marked "I owe", most urgent first, one short reason each.
-- summary: one or two plain sentences about the week as a whole."""
+- summary: one or two plain sentences about the week as a whole.
+Write to the person directly, saying "you" (never "I" or "my"). In every piece of text, refer to
+promises by person and what was promised. Never write ids or "#" numbers; the ids belong only in
+the JSON id fields."""
 
 
 class Concern(BaseModel):
