@@ -41,3 +41,10 @@ export interface AuditEvent {
   blocked: boolean;
   duration_ms: number;
 }
+
+export interface SweepResult {
+  prepared: Draft[];
+  failed: { commitment_id: number; description: string; reason: string }[];
+  skipped: number;
+  stopped: string | null;
+}

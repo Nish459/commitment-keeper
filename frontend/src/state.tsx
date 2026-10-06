@@ -9,7 +9,7 @@ import {
 } from "react";
 
 import { api } from "./api";
-import { startOfToday } from "./format";
+import { plural, startOfToday } from "./format";
 import type { AuditEvent, Capabilities, Commitment, Draft } from "./types";
 
 export type FilterId = "open" | "ready" | "done" | "all";
@@ -127,6 +127,7 @@ export interface Actions {
   saveProfile: (name: string) => Promise<boolean>;
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number) => Promise<void>;
+  sweep: () => Promise<void>;
   saveDraft: (draftId: number, subject: string, body: string) => Promise<boolean>;
   approve: (draftId: number, to?: string) => Promise<void>;
   reject: (draftId: number) => Promise<void>;
@@ -231,6 +232,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         await refresh().catch(() => undefined);
       },
+
+      sweep: () =>
+        withBusy("sweep", async () => {
+          try {
+            const result = await api.sweep();
+            await refresh();
+            const first = result.prepared[0];
+            if (first) dispatch({ type: "select", id: first.commitment_id });
+            const failed = result.failed.length;
+            const message = [
+              result.prepared.length
+                ? `Prepared ${plural(result.prepared.length, "draft")} for your review.`
+                : "Nothing needed drafting.",
+              failed ? `${failed} failed. Open it and try again.` : "",
+              result.skipped ? `${result.skipped} more will be picked up next time.` : "",
+              result.stopped ?? "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            toast(message, failed > 0 || Boolean(result.stopped));
+          } catch (error) {
+            toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          }
+        }),
 
       async saveDraft(draftId, subject, body) {
         try {

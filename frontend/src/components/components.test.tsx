@@ -36,6 +36,42 @@ describe("Hero", () => {
   });
 });
 
+describe("Hero sweep", () => {
+  const two = [
+    commitment({ id: 1, due: "2026-10-07" }),
+    commitment({ id: 2, due: "2026-10-08", person: "Marcus" }),
+  ];
+
+  it("offers to draft everything due soon when there are at least two", async () => {
+    const { actions } = renderApp(<Hero />, { commitments: two });
+    await userEvent.click(screen.getByRole("button", { name: "Draft all 2 due soon" }));
+    expect(actions.sweep).toHaveBeenCalled();
+  });
+
+  it("stays out of the way for a single promise", () => {
+    renderApp(<Hero />, { commitments: [two[0]!] });
+    expect(screen.queryByRole("button", { name: /Draft all/ })).not.toBeInTheDocument();
+  });
+
+  it("ignores far-off, rejected and promises owed to me", () => {
+    renderApp(<Hero />, {
+      commitments: [
+        commitment({ id: 1, due: "2026-10-07" }),
+        commitment({ id: 2, due: "2026-10-30" }),
+        commitment({ id: 3, due: "2026-10-07", direction: "owed_to_me" }),
+        commitment({ id: 4, due: "2026-10-07" }),
+      ],
+      drafts: [draft({ id: 9, commitment_id: 4, status: "rejected" })],
+    });
+    expect(screen.queryByRole("button", { name: /Draft all/ })).not.toBeInTheDocument();
+  });
+
+  it("shows progress while sweeping", () => {
+    renderApp(<Hero />, { commitments: two, busy: { sweep: true } });
+    expect(screen.getByRole("button", { name: "Drafting…" })).toBeDisabled();
+  });
+});
+
 describe("Timeline columns", () => {
   it("puts promises on their day, overdue first, and drops closed past items", () => {
     const columns = buildColumns(

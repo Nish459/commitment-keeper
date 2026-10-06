@@ -1,5 +1,5 @@
 import { dueLabel, plural } from "../format";
-import { byDue, isClosed, isOverdue, latestDraft, shorten } from "../selectors";
+import { byDue, isClosed, isOverdue, latestDraft, shorten, sweepCandidates } from "../selectors";
 import { useApp } from "../state";
 
 export function Hero() {
@@ -73,13 +73,30 @@ export function Hero() {
     );
   }
 
+  const dueSoon = sweepCandidates(commitments, drafts, today);
+  const sweeping = Boolean(busy["sweep"]);
+
   return (
     <section className="hero" aria-labelledby="headline">
       <h1 id="headline">{headline}</h1>
       <p className="hero-sub">
         You owe {owedByMe.length} and are owed {owedToMe.length}. {kept} kept so far.
       </p>
-      {action && <div className="hero-actions">{action}</div>}
+      {(action || dueSoon.length >= 2) && (
+        <div className="hero-actions">
+          {action}
+          {dueSoon.length >= 2 && (
+            <button
+              className={`btn ${action ? "btn-secondary" : "btn-primary"}`}
+              type="button"
+              disabled={sweeping}
+              onClick={() => void actions.sweep()}
+            >
+              {sweeping ? "Drafting…" : `Draft all ${dueSoon.length} due soon`}
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

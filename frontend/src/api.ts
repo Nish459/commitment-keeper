@@ -1,4 +1,4 @@
-import type { AuditEvent, Capabilities, Commitment, Draft } from "./types";
+import type { AuditEvent, Capabilities, Commitment, Draft, SweepResult } from "./types";
 
 export class ApiError extends Error {}
 
@@ -42,6 +42,7 @@ export const api = {
   saveProfile: (name: string) => put<{ name: string }>("/api/profile", { name }),
   ingest: (sourceId: string, text: string) =>
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
+  sweep: () => post<SweepResult>("/api/sweep"),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
   updateDraft: (draftId: number, subject: string, body: string) =>
     put<Draft>(`/api/drafts/${draftId}`, { subject, body }),

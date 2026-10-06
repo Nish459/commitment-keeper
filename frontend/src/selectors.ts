@@ -22,3 +22,17 @@ export const directionLabel = (c: Commitment) => (c.direction === "owed_by_me" ?
 export function shorten(text: string, max = 64): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
+
+const SWEEP_HORIZON_DAYS = 3;
+
+/** Promises the server's sweep would draft: open, mine, due soon, and not already rejected. */
+export function sweepCandidates(commitments: Commitment[], drafts: Draft[], today: Date): Commitment[] {
+  return commitments.filter(
+    (c) =>
+      c.direction === "owed_by_me" &&
+      c.status === "open" &&
+      c.due !== null &&
+      dayDiff(c.due, today) <= SWEEP_HORIZON_DAYS &&
+      latestDraft(drafts, c.id)?.status !== "rejected",
+  );
+}
