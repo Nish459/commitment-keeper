@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
@@ -41,6 +42,37 @@ class Commitment(BaseModel):
     source_id: str
     source_quote: str
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class Suggestion(BaseModel):
+    """A promise found in mail, offered to the user. Nothing is saved until they accept it."""
+
+    direction: Direction
+    person: str
+    description: str
+    due: date | None = None
+    source_id: str
+    source_quote: str
+
+
+class ScanResult(BaseModel):
+    emails_read: int
+    emails_skipped: int
+    suggestions: list[Suggestion]
+
+
+@dataclass(frozen=True)
+class Mail:
+    """One email reduced to what Kept needs: who, when, and the text the sender wrote."""
+
+    subject: str
+    sender_name: str
+    sender_address: str
+    to_names: tuple[str, ...]
+    to_addresses: tuple[str, ...]
+    sent: date | None
+    body: str
+    from_me: bool | None = None  # None until the mailbox owner is known
 
 
 class SearchResult(BaseModel):

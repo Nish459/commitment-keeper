@@ -6,8 +6,9 @@ import pytest
 from pydantic import BaseModel
 
 from kept.adapters.egress import build_http_client
-from kept.adapters.llm import LLMClient, LLMError, LLMOutputError, ModelNotConfiguredError
+from kept.adapters.llm import LLMClient, LLMOutputError, ModelNotConfiguredError
 from kept.config import Settings
+from kept.domain.errors import LLMError
 from kept.domain.models import AuditEvent, Tier
 
 

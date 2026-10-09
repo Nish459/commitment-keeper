@@ -8,16 +8,13 @@ from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from kept.config import Settings
+from kept.domain.errors import LLMError
 from kept.domain.models import Tier
 
 Messages = list[dict[str, str]]
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 _CODE_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
-
-
-class LLMError(Exception):
-    """The model call failed."""
 
 
 class ModelNotConfiguredError(LLMError):

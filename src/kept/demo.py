@@ -38,10 +38,17 @@ class DemoGuard:
         drafts: int,
         checks: int,
         manual: int,
+        inbox: int,
         max_note_chars: int,
     ) -> None:
         self._slots = slots
-        self._left = {"notes": notes, "drafts": drafts, "checks": checks, "manual": manual}
+        self._left = {
+            "notes": notes,
+            "drafts": drafts,
+            "checks": checks,
+            "manual": manual,
+            "inbox": inbox,
+        }
         self._max_note_chars = max_note_chars
         self._unlocked = False
         self._failed_attempts = 0
@@ -244,6 +251,7 @@ def build_demo_container(
         drafts=settings.demo_max_drafts,
         checks=settings.demo_max_checks,
         manual=settings.demo_max_manual,
+        inbox=settings.demo_max_inbox,
         max_note_chars=settings.demo_max_note_chars,
     )
     container = build_container(demo_settings, db=Database(":memory:"), guard=guard, **overrides)

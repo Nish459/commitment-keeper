@@ -59,11 +59,18 @@ class ExtractionService:
         self._tier = tier
         self._thinking = thinking
 
-    async def extract(self, source_id: str, text: str, today: date) -> list[Commitment]:
+    async def propose(
+        self, source_id: str, text: str, today: date, *, context: str = ""
+    ) -> list[Commitment]:
+        """Find the promises in `text` without saving them. `today` anchors relative deadlines.
+
+        `context` says who wrote the text when it is not the user (for example an email).
+        """
+        system = _SYSTEM_PROMPT + (f"\n\nAbout this text: {context}" if context else "")
         result = await self._llm.complete_json(
             self._tier,
             [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": text},
             ],
             ExtractionResult,
@@ -71,23 +78,24 @@ class ExtractionService:
             thinking=self._thinking,
         )
         haystack = _normalize(text)
-        existing = {(c.source_id, _normalize(c.source_quote)) for c in self._repo.list()}
-        saved: list[Commitment] = []
+        seen = {(c.source_id, _normalize(c.source_quote)) for c in self._repo.list()}
+        found: list[Commitment] = []
         for item in result.commitments:
             quote = _normalize(item.source_quote)
-            if not quote or quote not in haystack or (source_id, quote) in existing:
+            if not quote or quote not in haystack or (source_id, quote) in seen:
                 continue
-            existing.add((source_id, quote))
-            saved.append(
-                self._repo.add(
-                    Commitment(
-                        direction=item.direction,
-                        person=sentence_case(item.person),
-                        description=sentence_case(item.description),
-                        due=resolve_due(item.due_phrase, today),
-                        source_id=source_id,
-                        source_quote=item.source_quote.strip(),
-                    )
+            seen.add((source_id, quote))
+            found.append(
+                Commitment(
+                    direction=item.direction,
+                    person=sentence_case(item.person),
+                    description=sentence_case(item.description),
+                    due=resolve_due(item.due_phrase, today),
+                    source_id=source_id,
+                    source_quote=item.source_quote.strip(),
                 )
             )
-        return saved
+        return found
+
+    async def extract(self, source_id: str, text: str, today: date) -> list[Commitment]:
+        return [self._repo.add(c) for c in await self.propose(source_id, text, today)]

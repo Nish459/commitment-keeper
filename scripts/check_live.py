@@ -8,8 +8,9 @@ import asyncio
 import time
 
 from kept.adapters.egress import build_http_client
-from kept.adapters.llm import LLMClient, LLMError
+from kept.adapters.llm import LLMClient
 from kept.config import get_settings
+from kept.domain.errors import LLMError
 from kept.domain.models import AuditEvent, Tier
 
 

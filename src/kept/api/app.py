@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from kept import __version__
-from kept.adapters.llm import LLMError
 from kept.api.routes import router
 from kept.config import Settings, get_settings
 from kept.container import Container, build_container
@@ -19,6 +18,8 @@ from kept.domain.errors import (
     EmailError,
     EmailNotConfiguredError,
     InvalidAttachmentError,
+    InvalidMailError,
+    LLMError,
     NoDueDateError,
     RecipientNotAllowedError,
     SearchError,
@@ -38,6 +39,7 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     AccessDeniedError: 403,
     AttachmentRequiredError: 409,
     InvalidAttachmentError: 422,
+    InvalidMailError: 422,
     DemoLimitError: 429,
     EmailNotConfiguredError: 409,
     NoDueDateError: 409,

@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     sweep_horizon_days: int = 3
     sweep_max_per_run: int = 5
 
+    # Mail scan: read at most this many emails per scan. user_emails lists your own addresses
+    # so Kept can tell which emails you wrote (email_from counts automatically).
+    inbox_max_emails: int = 40
+    user_emails: Annotated[list[str], NoDecode] = []
+
     # Demo mode: every visitor gets a private, temporary workspace; email is forced off.
     demo_mode: bool = False
     demo_max_sessions: int = 200
@@ -42,6 +47,8 @@ class Settings(BaseSettings):
     demo_max_drafts: int = 40
     demo_max_checks: int = 10
     demo_max_manual: int = 50
+    demo_max_inbox: int = 5
+    demo_max_inbox_emails: int = 12
     demo_max_concurrent: int = 4
     demo_max_note_chars: int = 8000
     # Optional. Entering it lifts a visitor's limits (put it in the submission's testing notes).
@@ -56,12 +63,16 @@ class Settings(BaseSettings):
     # Addresses or @domains Kept may send to. Empty means only email_from itself.
     email_allowed_recipients: Annotated[list[str], NoDecode] = []
 
-    @field_validator("egress_allowlist", "email_allowed_recipients", mode="before")
+    @field_validator("egress_allowlist", "email_allowed_recipients", "user_emails", mode="before")
     @classmethod
     def _split_list(cls, value: object) -> object:
         if isinstance(value, str):
             return [item.strip().lower() for item in value.split(",") if item.strip()]
         return value
+
+    @property
+    def my_addresses(self) -> list[str]:
+        return sorted({*self.user_emails, *([self.email_from.lower()] if self.email_from else [])})
 
     @property
     def email_enabled(self) -> bool:

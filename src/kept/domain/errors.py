@@ -1,3 +1,7 @@
+class LLMError(Exception):
+    """The model call failed."""
+
+
 class SearchError(Exception):
     """The web search request failed."""
 
@@ -32,3 +36,7 @@ class InvalidAttachmentError(Exception):
 
 class AttachmentRequiredError(Exception):
     """The email says a file is attached, but none has been added."""
+
+
+class InvalidMailError(Exception):
+    """The uploaded mail files cannot be read, or there is nothing to scan."""

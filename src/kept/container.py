@@ -26,6 +26,7 @@ from kept.domain.models import Draft
 from kept.domain.ports import EmailSender, StructuredLLM, WebSearch
 from kept.services.attachments import AttachmentService
 from kept.services.extraction import ExtractionService
+from kept.services.inbox import InboxService
 from kept.services.keeper import KeeperService
 from kept.services.manual import ManualEntryService
 from kept.services.people import PeopleService
@@ -52,6 +53,7 @@ class Container:
     review: ReviewService
     sweep: SweepService
     manual: ManualEntryService
+    inbox: InboxService
     attachments: AttachmentService
     people: PeopleService
     planner: PlannerService
@@ -109,6 +111,8 @@ def build_container(
         people=people,
     )
 
+    extraction = ExtractionService(structured_llm, commitments)
+
     async def prepare(commitment_id: int, today_: date) -> Draft:
         async with guard.run("drafts") if guard else nullcontext():
             return await keeper.prepare(commitment_id, today_)
@@ -122,7 +126,8 @@ def build_container(
         drafts=drafts,
         contacts=contacts,
         profile=profile,
-        extraction=ExtractionService(structured_llm, commitments),
+        extraction=extraction,
+        inbox=InboxService(extraction, commitments, my_addresses=settings.my_addresses),
         keeper=keeper,
         planner=PlannerService(structured_llm, commitments),
         manual=ManualEntryService(commitments),

@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from datetime import date
 
 from kept.adapters.egress import build_http_client
-from kept.adapters.llm import LLMClient, LLMError
+from kept.adapters.llm import LLMClient
 from kept.adapters.sqlite import Database, SqliteCommitmentRepository
 from kept.config import get_settings
+from kept.domain.errors import LLMError
 from kept.domain.models import AuditEvent, Direction, Tier
 from kept.services.extraction import ExtractionService
 

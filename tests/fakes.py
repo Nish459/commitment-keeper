@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from kept.domain.errors import EmailError, SearchError
+from kept.domain.errors import EmailError, LLMError, SearchError
 from kept.domain.models import Attachment, Direction, SearchResult, Tier
 from kept.services.extraction import ExtractedCommitment, ExtractionResult
 from kept.services.keeper import DraftContent, ResearchPlan
@@ -44,6 +44,8 @@ class ScriptedLLM:
             ),
         }
         self.error: Exception | None = None
+        self.prompts: list[str] = []  # the system prompt of every call, in order
+        self.fail_after: int | None = None  # raise once this many calls have been made
 
     async def complete_json[T: BaseModel](
         self,
@@ -52,8 +54,11 @@ class ScriptedLLM:
         schema: type[T],
         **kwargs: Any,
     ) -> T:
-        if self.error is not None:
-            raise self.error
+        self.prompts.append(messages[0]["content"])
+        if self.error is not None or (
+            self.fail_after is not None and len(self.prompts) > self.fail_after
+        ):
+            raise self.error or LLMError("scripted failure")
         return schema.model_validate(self.responses[schema].model_dump())
 
 

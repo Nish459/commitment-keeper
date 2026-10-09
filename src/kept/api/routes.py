@@ -1,11 +1,23 @@
+import asyncio
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel, Field, StringConstraints
 
+from kept.adapters.mailfiles import parse_mail_files
 from kept.container import Container
-from kept.domain.errors import EmailNotConfiguredError
+from kept.domain.errors import EmailNotConfiguredError, InvalidMailError
 from kept.domain.models import (
     Attachment,
     AuditEvent,
@@ -15,12 +27,15 @@ from kept.domain.models import (
     Draft,
     DraftStatus,
     PersonSummary,
+    ScanResult,
+    Suggestion,
     utcnow,
 )
 from kept.services.attachments import MAX_FILE_BYTES
 from kept.services.calendar import build_ics
 from kept.services.keeper import CommitmentNotFoundError
 from kept.services.planner import WeekCheck
+from kept.services.sample_inbox import SAMPLE_OWNER, sample_mails
 from kept.services.sweep import SweepResult
 
 router = APIRouter(prefix="/api")
@@ -67,6 +82,63 @@ async def add_promise(promise: PromiseIn, c: Deps) -> Commitment:
     """Add one promise by hand. No model is involved, so it is instant."""
     async with c.guarded("manual"):
         return c.manual.add(promise.direction, promise.person, promise.description, promise.due)
+
+
+MAX_MAIL_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/inbox/scan")
+async def scan_inbox(
+    c: Deps,
+    files: Annotated[list[UploadFile] | None, File()] = None,
+    sample: Annotated[bool, Form()] = False,
+) -> ScanResult:
+    """Read uploaded .eml/.mbox files (or the sample inbox) and suggest the promises in them.
+
+    Nothing is stored: the files are read in memory and the suggestions come back for review.
+    """
+    owner: str | None = None
+    if sample:
+        mails = sample_mails(c.today())
+        owner = SAMPLE_OWNER
+    elif files:
+        uploads: list[tuple[str, bytes]] = []
+        total = 0
+        for upload in files:
+            data = await upload.read(MAX_MAIL_UPLOAD_BYTES - total + 1)
+            total += len(data)
+            if total > MAX_MAIL_UPLOAD_BYTES:
+                raise InvalidMailError("Those files are too large. Keep them under 10 MB in total.")
+            uploads.append((upload.filename or "mail", data))
+        mails = await asyncio.to_thread(parse_mail_files, uploads)
+    else:
+        raise InvalidMailError("Choose .eml or .mbox files, or try the sample inbox.")
+
+    capped = c.guard is not None and not c.guard.unlocked
+    limit = c.settings.demo_max_inbox_emails if capped else c.settings.inbox_max_emails
+    async with c.guarded("inbox"):
+        return await c.inbox.scan(mails, c.today(), max_emails=limit, mailbox_owner=owner)
+
+
+class SuggestionIn(BaseModel):
+    direction: Direction
+    person: Annotated[OneLine, Field(max_length=100)]
+    description: Annotated[OneLine, Field(max_length=300)]
+    due: date | None = None
+    source_id: Annotated[OneLine, Field(max_length=250)]
+    source_quote: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)
+    ]
+
+
+class AcceptIn(BaseModel):
+    suggestions: list[SuggestionIn] = Field(min_length=1, max_length=50)
+
+
+@router.post("/inbox/accept", status_code=201)
+def accept_suggestions(body: AcceptIn, c: Deps) -> list[Commitment]:
+    """Add the promises the user chose from a scan to the ledger."""
+    return c.inbox.accept([Suggestion(**item.model_dump()) for item in body.suggestions])
 
 
 @router.get("/commitments")
