@@ -468,7 +468,7 @@
 .detail {
   position: sticky;
   top: var(--s-4);
-  max-height: calc(100vh - var(--perimeter-h) - 2 * var(--s-4));
+  max-height: calc(100vh - 2 * var(--s-4));
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface);
@@ -704,82 +704,49 @@
   border-top: 1px solid var(--line);
 }
 
-/* ---------- Perimeter ---------- */
-.perimeter {
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 20;
-}
-.perimeter-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  height: var(--perimeter-h);
-  padding: 0 var(--gutter);
-  background: var(--bar-bg);
-  border: 0;
-  border-radius: 0;
-  color: var(--bar-text);
-  text-align: left;
-}
-.perimeter-bar:focus-visible {
-  outline-offset: -4px;
-  outline-color: var(--bar-text);
-}
-.perimeter-icon {
-  display: inline-flex;
-  color: var(--bar-accent);
-}
-.shield {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-.perimeter-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s-3);
-  flex: 1;
-  min-width: 0;
-}
-.perimeter-summary span {
-  color: var(--bar-muted);
-}
-.perimeter-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  color: var(--bar-muted);
-  font-size: var(--step--1);
+/* ---------- Privacy log ---------- */
+.privacy-button {
+  gap: var(--s-2);
   white-space: nowrap;
 }
-.chevron {
-  width: 1rem;
-  height: 1rem;
-  transition: transform 0.2s var(--ease);
+.privacy-button .shield {
+  color: var(--kept);
 }
-.perimeter-bar[aria-expanded="true"] .chevron {
-  transform: rotate(180deg);
+.privacy-count {
+  min-width: 1.4rem;
+  padding: 0 0.4rem;
+  background: var(--kept-wash);
+  border-radius: 999px;
+  color: var(--kept);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
-
-.perimeter-panel {
-  max-height: min(60vh, 34rem);
-  overflow: auto;
+.privacy {
+  width: min(48rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg);
   background: var(--surface);
-  border-top: 2px solid var(--rule);
-  box-shadow: 0 -20px 40px -24px rgb(var(--shadow-rgb) / 0.45);
+  color: var(--ink);
+  box-shadow: var(--lift);
 }
-.perimeter-panel[hidden] {
-  display: none;
+.privacy::backdrop {
+  background: var(--backdrop);
 }
-.perimeter-inner {
+.privacy-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.privacy-inner {
   display: grid;
   gap: var(--s-3);
-  max-width: 78rem;
-  margin: 0 auto;
-  padding: var(--s-5) var(--gutter);
+  padding: var(--s-5);
 }
-.perimeter-inner h2 {
+.privacy-inner h2 {
   font: 600 var(--step-1) / 1.2 var(--font-display);
 }
 .allowed {
@@ -911,7 +878,7 @@ tr.is-blocked td {
 .toasts {
   position: fixed;
   right: var(--gutter);
-  bottom: calc(var(--perimeter-h) + var(--s-4));
+  bottom: var(--s-4);
   z-index: 30;
   display: grid;
   gap: var(--s-2);
@@ -965,13 +932,8 @@ tr.is-blocked td {
   .row-status {
     display: none;
   }
-  .perimeter-toggle span,
-  .perimeter-toggle {
-    font-size: 0;
-  }
-  .perimeter-toggle .chevron {
-    width: 1.25rem;
-    height: 1.25rem;
+  .privacy-label {
+    display: none;
   }
 }
 

@@ -3,7 +3,7 @@ import { DemoBanner } from "./components/DemoBanner";
 import { Detail } from "./components/Detail";
 import { Hero } from "./components/Hero";
 import { Ledger } from "./components/Ledger";
-import { Perimeter } from "./components/Perimeter";
+import { PrivacyLog, PrivacyLogButton } from "./components/PrivacyLog";
 import { ProfileDialog } from "./components/ProfileDialog";
 import { Timeline } from "./components/Timeline";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -27,6 +27,7 @@ export function App() {
           <span>Kept</span>
         </div>
         <div className="topbar-actions">
+          <PrivacyLogButton />
           <ThemeToggle />
           <button className="btn btn-quiet profile-button" type="button" onClick={actions.openProfile}>
             {state.profileName ? `Signing as ${state.profileName}` : "Add your name"}
@@ -46,7 +47,7 @@ export function App() {
           <Detail />
         </div>
       </main>
-      <Perimeter />
+      <PrivacyLog />
       <Composer />
       <ProfileDialog />
       <Toasts />

@@ -47,7 +47,7 @@ export interface State {
   busy: Record<string, true>;
   loading: boolean;
   sealedId: number | null;
-  perimeterOpen: boolean;
+  privacyOpen: boolean;
   composer: { open: boolean; sample: boolean; mode: ComposerMode };
   toasts: ToastMessage[];
 }
@@ -74,7 +74,7 @@ export const initialState: State = {
   busy: {},
   loading: true,
   sealedId: null,
-  perimeterOpen: false,
+  privacyOpen: false,
   composer: { open: false, sample: false, mode: "notes" },
   toasts: [],
 };
@@ -97,8 +97,8 @@ type Action =
   | { type: "filter"; filter: FilterId }
   | { type: "busy"; key: string; value: boolean }
   | { type: "sealed"; id: number | null }
-  | { type: "perimeter"; open: boolean }
-  | { type: "togglePerimeter" }
+  | { type: "privacy"; open: boolean }
+  | { type: "togglePrivacy" }
   | { type: "composer"; open: boolean; sample?: boolean; mode?: ComposerMode }
   | { type: "toast"; toast: ToastMessage }
   | { type: "dismissToast"; id: number };
@@ -136,10 +136,10 @@ function reducer(state: State, action: Action): State {
     }
     case "sealed":
       return { ...state, sealedId: action.id };
-    case "perimeter":
-      return { ...state, perimeterOpen: action.open };
-    case "togglePerimeter":
-      return { ...state, perimeterOpen: !state.perimeterOpen };
+    case "privacy":
+      return { ...state, privacyOpen: action.open };
+    case "togglePrivacy":
+      return { ...state, privacyOpen: !state.privacyOpen };
     case "composer":
       return {
         ...state,
@@ -159,8 +159,8 @@ function reducer(state: State, action: Action): State {
 export interface Actions {
   select: (id: number, options?: { scroll?: boolean }) => void;
   setFilter: (filter: FilterId) => void;
-  togglePerimeter: () => void;
-  closePerimeter: () => void;
+  togglePrivacy: () => void;
+  closePrivacy: () => void;
   openComposer: (options?: { sample?: boolean; mode?: ComposerMode }) => void;
   closeComposer: () => void;
   openProfile: () => void;
@@ -248,8 +248,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       },
       setFilter: (filter) => dispatch({ type: "filter", filter }),
-      togglePerimeter: () => dispatch({ type: "togglePerimeter" }),
-      closePerimeter: () => dispatch({ type: "perimeter", open: false }),
+      togglePrivacy: () => dispatch({ type: "togglePrivacy" }),
+      closePrivacy: () => dispatch({ type: "privacy", open: false }),
       openComposer: (options) =>
         dispatch({ type: "composer", open: true, sample: options?.sample, mode: options?.mode ?? "notes" }),
       closeComposer: () => dispatch({ type: "composer", open: false }),
@@ -431,14 +431,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (first) dispatch({ type: "select", id: first.id });
     });
   }, [guarded, refresh]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dispatch({ type: "perimeter", open: false });
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
 
   const value = useMemo(() => ({ state, actions, today: startOfToday() }), [state, actions]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

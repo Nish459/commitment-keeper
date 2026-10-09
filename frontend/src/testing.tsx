@@ -11,8 +11,8 @@ export function makeActions(): Actions {
   return {
     select: vi.fn(),
     setFilter: vi.fn(),
-    togglePerimeter: vi.fn(),
-    closePerimeter: vi.fn(),
+    togglePrivacy: vi.fn(),
+    closePrivacy: vi.fn(),
     openComposer: vi.fn(),
     closeComposer: vi.fn(),
     openProfile: vi.fn(),

@@ -68,7 +68,7 @@
   --on-inverse: #f3f5f7;
   --on-inverse-muted: #b8c2d6;
 
-  /* The perimeter bar and toasts. */
+  /* Toasts. */
   --bar-bg: #14213d;
   --bar-text: #ffffff;
   --bar-muted: #c9d2e3;
@@ -103,7 +103,6 @@
   --r-md: 10px;
   --r-lg: 14px;
 
-  --perimeter-h: 3rem;
   --gutter: clamp(1rem, 4vw, 2.5rem);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }

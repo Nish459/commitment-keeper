@@ -77,18 +77,3 @@ export function ShieldIcon() {
     </svg>
   );
 }
-
-export function Chevron() {
-  return (
-    <svg className="chevron" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="m4 10 4-4 4 4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

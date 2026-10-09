@@ -10,6 +10,7 @@ import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
 import { WeekCheckPanel } from "./WeekCheckPanel";
 import { Ledger } from "./Ledger";
+import { PrivacyLog, PrivacyLogButton } from "./PrivacyLog";
 import { ProfileDialog } from "./ProfileDialog";
 import { DraftBody } from "./RichText";
 import { buildColumns } from "./Timeline";
@@ -727,5 +728,47 @@ describe("What Kept remembers", () => {
       filter: "all",
     });
     expect(screen.getByRole("heading", { name: /Priya.*emailed Oct 6/ })).toBeInTheDocument();
+  });
+});
+
+describe("Privacy log", () => {
+  const event = (blocked: boolean) => ({
+    at: "2026-10-06T10:00:00Z",
+    method: "POST",
+    host: blocked ? "evil.example" : "api.tavily.com",
+    path: "/search",
+    bytes_out: 120,
+    duration_ms: 40,
+    status_code: blocked ? null : 200,
+    blocked,
+  });
+
+  it("shows no count until something has been sent", () => {
+    renderApp(<PrivacyLogButton />);
+    expect(screen.getByRole("button", { name: "Privacy log" })).toBeInTheDocument();
+  });
+
+  it("shows how many requests went out and opens the log", async () => {
+    const { actions } = renderApp(<PrivacyLogButton />, { audit: [event(false), event(false)] });
+    const button = screen.getByRole("button", { name: "Privacy log, 2 requests sent out" });
+    await userEvent.click(button);
+    expect(actions.togglePrivacy).toHaveBeenCalled();
+  });
+
+  it("lists allowed hosts and every request, blocked ones marked", () => {
+    renderApp(<PrivacyLog />, {
+      privacyOpen: true,
+      allowlist: ["api.tavily.com"],
+      audit: [event(false), event(true)],
+    });
+    const log = screen.getByRole("dialog", { name: "Everything Kept sent out" });
+    expect(within(log).getByText("Allowed hosts")).toBeInTheDocument();
+    expect(within(log).getByText("Blocked")).toBeInTheDocument();
+    expect(within(log).getByText(/1 request sent, 1 blocked/)).toBeInTheDocument();
+  });
+
+  it("says plainly when nothing has been sent", () => {
+    renderApp(<PrivacyLog />, { privacyOpen: true });
+    expect(screen.getByText(/Nothing has been sent out yet/)).toBeInTheDocument();
   });
 });
