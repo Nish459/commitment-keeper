@@ -20,7 +20,7 @@ on, and the three secrets left blank for you to enter.
    (a code you choose). Create the service and watch **Logs** while the image builds (several minutes).
 4. When it says Live, open `https://kept-xxxx.onrender.com` (shown at the top of the service page).
 5. Check it: banner and sample promises, **Find promises**, **Research and draft**, the access code, and
-   the Perimeter panel showing only Nebius and Tavily.
+   the Privacy log panel showing only Nebius and Tavily.
 
 Good to know:
 - A free service **sleeps after 15 minutes without traffic** and takes about a minute to wake. Open the
@@ -117,7 +117,7 @@ Wait for the state to be `Running`. `/health` should show `"nebius_key_set": tru
 2. Paste a note and click **Find promises** (this proves it can reach Token Factory).
 3. Click **Research and draft** (this proves Tavily works).
 4. Click **Have an access code?** and enter your code.
-5. Open the **Perimeter** panel and confirm only Nebius and Tavily appear.
+5. Open the **Privacy log** panel and confirm only Nebius and Tavily appear.
 
 ## Cost and housekeeping (verified)
 - You are billed while it runs; a stopped endpoint is not billed for compute.

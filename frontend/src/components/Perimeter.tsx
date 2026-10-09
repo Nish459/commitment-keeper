@@ -12,8 +12,8 @@ export function Perimeter() {
   const open = state.perimeterOpen;
 
   const summary = events.length
-    ? `${plural(sent, "request")} left this machine. ${blocked} blocked.`
-    : "Nothing has left this machine.";
+    ? `${plural(sent, "request")} sent out. ${blocked} blocked.`
+    : "Nothing has been sent out yet.";
 
   return (
     <footer className="perimeter">
@@ -22,10 +22,10 @@ export function Perimeter() {
         id="perimeter-panel"
         hidden={!open}
         role="region"
-        aria-label="What left this machine"
+        aria-label="Everything Kept sent out"
       >
         <div className="perimeter-inner">
-          <h2>What left this machine</h2>
+          <h2>Everything Kept sent out</h2>
           <p className="note">Kept records the host, path and size of every request. Never the content.</p>
           <div className="allowed">
             <span className="allowed-label">Allowed hosts</span>
@@ -79,7 +79,7 @@ export function Perimeter() {
           <ShieldIcon />
         </span>
         <span className="perimeter-summary">
-          <strong>Perimeter</strong>
+          <strong>Privacy log</strong>
           <span>{summary}</span>
         </span>
         <span className="perimeter-toggle">

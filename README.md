@@ -18,7 +18,7 @@ the deadline, and shows you exactly what left your machine. Nothing is sent with
 | Click **Research and draft** (or **Draft all due soon**) | Searches the web, writes a **cited** email, and flags it if it says "attached" |
 | Click **Check my week** | Reads every open promise and flags conflicts, late dependencies and risks, then suggests an order |
 | Review a draft | Edit it, attach files, and approve. Only then is anything sent. |
-| Open the **Perimeter** panel | See every request that left the machine: host, path and size, never content |
+| Open the **Privacy log** panel | See every request Kept sent out: host, path and size, never content |
 
 Also: ledger search, an `.ics` calendar download for any deadline, per-person history that shapes follow-ups
 (including a reminder P.S. for what they still owe you), a light and a dark theme, and a `kept sweep`
@@ -47,7 +47,7 @@ across three Nemotron sizes by how hard each task is:
 - **Drafts are grounded.** Claims must cite the search results they came from, uncited drafts are
   rejected, and invented places, dates and commitments are forbidden by rule.
 - **One audited way out.** Every outbound request goes through a single client with an exact-host
-  allowlist and a metadata-only audit log, shown live in the Perimeter panel.
+  allowlist and a metadata-only audit log, shown live in the Privacy log panel.
 - **Email is off by default,** can only go to addresses you list, and an email that says "attached"
   cannot be sent without a file.
 
