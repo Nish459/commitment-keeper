@@ -1,11 +1,10 @@
 # Deploying Kept
 
-Three ways to host the public demo. **Option A (Render, free) is what we use.**
+Two ways to host the public demo. **Option A (Render, free) is what we use.**
 
 - **A: Render**, free plan, builds the root `Dockerfile` straight from GitHub. No card needed.
 - **B: Nebius Serverless**, needs a funded AI Cloud billing account (hackathon promo credits apply to Token
   Factory only, so an AI Cloud project starts at a $0 balance and refuses to create resources).
-- **C: Hugging Face Space** (`deploy/huggingface/`), but Docker Spaces became paid (PRO) in 2026.
 
 The rules do not require hosting on Nebius: *"runs on Nebius Token Factory or Nebius AI Cloud"* is met by
 making runtime calls to the Token Factory API, which Kept does on every request.
@@ -150,10 +149,3 @@ Wait for the state to be `Running`. `/health` should show `"nebius_key_set": tru
 `kept sweep` is built for this (`--container-command` / `--args` on `nebius ai job create`, **check
 `--help`**). A Job's disk is temporary, so it can only act on a database it can reach (a mounted volume),
 not on the demo's in-memory workspaces. Treat this as an extra for a personal, persistent install.
-
-## Option C: Hugging Face Space (paid)
-
-`deploy/huggingface/Dockerfile` and `README.md` make a two-file Space that clones this repo and starts in
-demo mode. Hugging Face now requires PRO for Docker Spaces, so it is kept only as a fallback. Upload both
-files, add the same three secrets, and open the direct `https://<user>-kept.hf.space` address (the
-huggingface.co page iframes the app and blocks the session cookie).
