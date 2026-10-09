@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { dueLabel } from "../format";
+import { dueLabel, previewText } from "../format";
 import { findPerson, historySentences, isOverdue, latestDraft } from "../selectors";
 import { useApp } from "../state";
 import type { Commitment, Draft, PersonSummary } from "../types";
@@ -166,6 +166,63 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
   );
 }
 
+/** The short version in the side pane: what the email is, a taste of it, and a way in. */
+function DraftSummary({ draft }: { draft: Draft }) {
+  const { actions } = useApp();
+  const pending = draft.status === "pending";
+  const label = pending ? "Draft ready for your review" : draft.sent_to ? `Sent to ${draft.sent_to}` : "Approved";
+  return (
+    <article className="draft-summary" aria-label="Email draft summary">
+      <p className="draft-summary-label">{label}</p>
+      <h3 className="draft-subject">{draft.subject}</h3>
+      <p className="draft-preview">{previewText(draft.body)}</p>
+      <button
+        className={`btn ${pending ? "btn-primary" : "btn-secondary"}`}
+        type="button"
+        onClick={actions.openReview}
+      >
+        {pending ? "Review draft" : "View email"}
+      </button>
+    </article>
+  );
+}
+
+/** The full email in a roomy window, with the actions pinned at the bottom. */
+function ReviewDialog({ draft, person }: { draft: Draft; person: string }) {
+  const { state, actions } = useApp();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const previous = useRef(draft.status);
+  const open = state.reviewOpen;
+
+  useEffect(() => {
+    const el = dialog.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    else if (!open && el.open) el.close();
+  }, [open]);
+
+  // Approving or rejecting finishes the review, so the window closes itself.
+  useEffect(() => {
+    if (previous.current === "pending" && draft.status !== "pending") actions.closeReview();
+    previous.current = draft.status;
+  }, [draft.status, actions]);
+
+  // Never leave the flag set for a draft that is no longer on screen.
+  useEffect(() => () => actions.closeReview(), [actions]);
+
+  return (
+    <dialog ref={dialog} className="review" aria-labelledby="review-title" onClose={actions.closeReview}>
+      <div className="review-head">
+        <h2 id="review-title">Email to {person}</h2>
+        <button className="btn btn-quiet" type="button" onClick={actions.closeReview}>
+          Close
+        </button>
+      </div>
+      <div className="review-body">{open && <DraftView key={draft.id} draft={draft} person={person} />}</div>
+    </dialog>
+  );
+}
+
 function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
   const { state, actions } = useApp();
 
@@ -184,7 +241,12 @@ function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
     );
   }
   if (draft && (draft.status === "pending" || draft.status === "approved")) {
-    return <DraftView key={draft.id} draft={draft} person={c.person} />;
+    return (
+      <>
+        <DraftSummary draft={draft} />
+        <ReviewDialog draft={draft} person={c.person} />
+      </>
+    );
   }
   if (c.status === "done") return <p className="note">Marked as kept.</p>;
 

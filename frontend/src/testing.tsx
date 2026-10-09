@@ -13,6 +13,8 @@ export function makeActions(): Actions {
     setFilter: vi.fn(),
     togglePrivacy: vi.fn(),
     closePrivacy: vi.fn(),
+    openReview: vi.fn(),
+    closeReview: vi.fn(),
     openComposer: vi.fn(),
     closeComposer: vi.fn(),
     openProfile: vi.fn(),

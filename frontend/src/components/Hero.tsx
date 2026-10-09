@@ -54,7 +54,10 @@ export function Hero() {
       <button
         className="btn btn-primary"
         type="button"
-        onClick={() => actions.select(firstReady.id, { scroll: true })}
+        onClick={() => {
+          actions.select(firstReady.id);
+          actions.openReview();
+        }}
       >
         {ready.length === 1 ? "Review the draft" : "Review the first draft"}
       </button>

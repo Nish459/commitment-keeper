@@ -53,3 +53,15 @@ export const plural = (count: number, one: string, many = `${one}s`) =>
 export function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
+
+const GREETING = /^(hi|hello|dear|hey)\b/i;
+
+/** The first real paragraph of an email, for a short preview: no greeting, no [n] markers. */
+export function previewText(body: string): string {
+  const paragraphs = body
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s*\[\d+\]/g, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const first = paragraphs.find((p) => !(GREETING.test(p) && p.length < 40));
+  return first ?? "";
+}

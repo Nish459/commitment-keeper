@@ -2,8 +2,10 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { previewText } from "../format";
 import { commitment, draft, person, renderApp, TODAY } from "../testing";
 import { App } from "../App";
+import { AppContext, initialState } from "../state";
 import { DemoBanner } from "./DemoBanner";
 import { Composer } from "./Composer";
 import { Detail, quoteText } from "./Detail";
@@ -29,6 +31,16 @@ describe("Hero", () => {
       drafts: [draft()],
     });
     expect(screen.getByRole("heading", { name: "1 draft ready for your approval." })).toBeInTheDocument();
+  });
+
+  it("opens the review window for the waiting draft", async () => {
+    const { actions } = renderApp(<Hero />, {
+      commitments: [commitment({ status: "ready_for_review" })],
+      drafts: [draft()],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Review the draft" }));
+    expect(actions.select).toHaveBeenCalledWith(1);
+    expect(actions.openReview).toHaveBeenCalled();
   });
 
   it("offers to prepare the next promise when nothing is ready", async () => {
@@ -125,6 +137,7 @@ describe("Detail", () => {
       commitments: [commitment({ status: "ready_for_review" })],
       drafts: [draft()],
       selectedId: 1,
+      reviewOpen: true,
     });
     expect(screen.getByText("I will send it by Friday.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Approve" }));
@@ -167,6 +180,7 @@ describe("Detail draft editing", () => {
     commitments: [commitment({ status: "ready_for_review" })],
     drafts: [draft()],
     selectedId: 1,
+    reviewOpen: true,
   };
 
   it("edits subject and message and saves them", async () => {
@@ -194,7 +208,9 @@ describe("Detail draft editing", () => {
     await userEvent.type(screen.getByLabelText("Subject"), " changed");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(actions.saveDraft).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Comparison" })).toBeInTheDocument();
+    const review = screen.getByRole("dialog", { name: /Email to Priya/ });
+    expect(within(review).getByRole("heading", { name: "Comparison" })).toBeInTheDocument();
+    expect(within(review).queryByLabelText("Subject")).not.toBeInTheDocument();
   });
 
   it("does not offer editing for a draft that was already approved", () => {
@@ -202,6 +218,7 @@ describe("Detail draft editing", () => {
       commitments: [commitment({ status: "done" })],
       drafts: [draft({ status: "approved" })],
       selectedId: 1,
+      reviewOpen: true,
     });
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
@@ -212,6 +229,7 @@ describe("Detail email sending", () => {
     commitments: [commitment({ status: "ready_for_review" })],
     drafts: [draft()],
     selectedId: 1,
+    reviewOpen: true,
   };
   const emailOn = (recipients: string[]) => ({
     capabilities: { email: { enabled: true, sender: "me@example.com", recipients }, demo: false, access_code: false, unlocked: false },
@@ -258,6 +276,7 @@ describe("Detail email sending", () => {
       commitments: [commitment({ status: "done" })],
       drafts: [draft({ status: "approved", sent_to: "priya@acme.com", sent_at: "2026-10-06T12:00:00Z" })],
       selectedId: 1,
+      reviewOpen: true,
     });
     expect(screen.getByText(/Sent to priya@acme.com on/)).toBeInTheDocument();
     expect(screen.getByText("Sent")).toBeInTheDocument();
@@ -371,6 +390,7 @@ describe("Demo mode", () => {
       commitments: [commitment({ status: "ready_for_review" })],
       drafts: [draft()],
       selectedId: 1,
+      reviewOpen: true,
     });
     expect(screen.getByText(/In the demo, approving marks the promise as kept/)).toBeInTheDocument();
     expect(screen.queryByText(/SMTP/)).not.toBeInTheDocument();
@@ -544,6 +564,7 @@ describe("Attachments", () => {
     commitments: [commitment({ status: "ready_for_review" })],
     drafts: [draft({ needs_attachment: true })],
     selectedId: 1,
+    reviewOpen: true,
   };
   const file = { id: 5, draft_id: 1, filename: "roadmap.pdf", content_type: "application/pdf", size: 2048 };
 
@@ -580,6 +601,7 @@ describe("Attachments", () => {
       commitments: [commitment({ status: "ready_for_review" })],
       drafts: [draft()],
       selectedId: 1,
+      reviewOpen: true,
       ...emailOn,
     });
     expect(screen.getByRole("button", { name: "Send email" })).toBeEnabled();
@@ -591,6 +613,7 @@ describe("Attachments", () => {
       commitments: [commitment({ status: "done" })],
       drafts: [draft({ status: "approved", needs_attachment: true, sent_to: "zoe@acme.com", sent_at: "2026-10-06T12:00:00Z" })],
       selectedId: 1,
+      reviewOpen: true,
       attachments: { 1: [file] },
       ...emailOn,
     });
@@ -770,5 +793,73 @@ describe("Privacy log", () => {
   it("says plainly when nothing has been sent", () => {
     renderApp(<PrivacyLog />, { privacyOpen: true });
     expect(screen.getByText(/Nothing has been sent out yet/)).toBeInTheDocument();
+  });
+});
+
+describe("Draft summary", () => {
+  const ready = {
+    commitments: [commitment({ status: "ready_for_review" })],
+    drafts: [draft({ body: "Hi Priya,\n\nAcme sells widgets [1].\n\nSources:\n[1] https://www.acme.test/page" })],
+    selectedId: 1,
+  };
+
+  it("shows the subject and a short preview, and opens the review window", async () => {
+    const { actions } = renderApp(<Detail />, ready);
+    const summary = screen.getByRole("article", { name: "Email draft summary" });
+    expect(within(summary).getByRole("heading", { name: "Comparison" })).toBeInTheDocument();
+    expect(within(summary).getByText("Acme sells widgets.")).toBeInTheDocument();
+    expect(within(summary).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    await userEvent.click(within(summary).getByRole("button", { name: "Review draft" }));
+    expect(actions.openReview).toHaveBeenCalled();
+  });
+
+  it("offers to view an email that was already approved", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ status: "done" })],
+      drafts: [draft({ status: "approved", sent_to: "priya@acme.com" })],
+      selectedId: 1,
+    });
+    expect(screen.getByText("Sent to priya@acme.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View email" })).toBeInTheDocument();
+  });
+
+  it("closes the review window once the draft is approved", () => {
+    const { actions, rerender } = renderApp(<Detail />, { ...ready, reviewOpen: true });
+    expect(actions.closeReview).not.toHaveBeenCalled();
+    rerender(
+      <AppContext.Provider
+        value={{
+          state: {
+            ...initialState,
+            loading: false,
+            ...ready,
+            drafts: [draft({ status: "approved" })],
+            reviewOpen: true,
+          },
+          actions,
+          today: TODAY,
+        }}
+      >
+        <Detail />
+      </AppContext.Provider>,
+    );
+    expect(actions.closeReview).toHaveBeenCalled();
+  });
+});
+
+describe("previewText", () => {
+  it("skips the greeting and drops citation markers", () => {
+    expect(previewText("Hi Priya,\n\nAcme sells widgets [1] and gadgets [2].\n\nBest,\nAda")).toBe(
+      "Acme sells widgets and gadgets.",
+    );
+  });
+
+  it("keeps a first paragraph that merely starts with a greeting word and is a real sentence", () => {
+    const long = "Hi Priya, here is the comparison you asked for, with prices and the main trade-offs.";
+    expect(previewText(`${long}\n\nMore.`)).toBe(long);
+  });
+
+  it("is empty for an empty body", () => {
+    expect(previewText("")).toBe("");
   });
 });

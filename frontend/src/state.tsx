@@ -48,6 +48,7 @@ export interface State {
   loading: boolean;
   sealedId: number | null;
   privacyOpen: boolean;
+  reviewOpen: boolean;
   composer: { open: boolean; sample: boolean; mode: ComposerMode };
   toasts: ToastMessage[];
 }
@@ -75,6 +76,7 @@ export const initialState: State = {
   loading: true,
   sealedId: null,
   privacyOpen: false,
+  reviewOpen: false,
   composer: { open: false, sample: false, mode: "notes" },
   toasts: [],
 };
@@ -99,6 +101,7 @@ type Action =
   | { type: "sealed"; id: number | null }
   | { type: "privacy"; open: boolean }
   | { type: "togglePrivacy" }
+  | { type: "review"; open: boolean }
   | { type: "composer"; open: boolean; sample?: boolean; mode?: ComposerMode }
   | { type: "toast"; toast: ToastMessage }
   | { type: "dismissToast"; id: number };
@@ -140,6 +143,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, privacyOpen: action.open };
     case "togglePrivacy":
       return { ...state, privacyOpen: !state.privacyOpen };
+    case "review":
+      return { ...state, reviewOpen: action.open };
     case "composer":
       return {
         ...state,
@@ -161,6 +166,8 @@ export interface Actions {
   setFilter: (filter: FilterId) => void;
   togglePrivacy: () => void;
   closePrivacy: () => void;
+  openReview: () => void;
+  closeReview: () => void;
   openComposer: (options?: { sample?: boolean; mode?: ComposerMode }) => void;
   closeComposer: () => void;
   openProfile: () => void;
@@ -250,6 +257,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFilter: (filter) => dispatch({ type: "filter", filter }),
       togglePrivacy: () => dispatch({ type: "togglePrivacy" }),
       closePrivacy: () => dispatch({ type: "privacy", open: false }),
+      openReview: () => dispatch({ type: "review", open: true }),
+      closeReview: () => dispatch({ type: "review", open: false }),
       openComposer: (options) =>
         dispatch({ type: "composer", open: true, sample: options?.sample, mode: options?.mode ?? "notes" }),
       closeComposer: () => dispatch({ type: "composer", open: false }),
