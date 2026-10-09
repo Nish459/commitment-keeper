@@ -36,7 +36,7 @@ across three Nemotron sizes by how hard each task is:
 | **Check my week** (conflicts, dependencies, order) | **Nemotron 3 Ultra** | The one place that genuinely needs multi-step reasoning |
 
 - **Tavily** supplies the web research behind every draft (runtime calls, always cited).
-- **Nebius Serverless** hosts the demo endpoint (see [`docs/DEPLOY.md`](docs/DEPLOY.md)).
+- The demo is hosted on Render's free plan (see [`docs/DEPLOY.md`](docs/DEPLOY.md)); every model call still goes to Token Factory.
 - Nemotron reasons by default and can use its whole token budget "thinking", so Kept turns reasoning off
   for extraction and drafting and leaves it on for Ultra. Details are in [`FEEDBACK.md`](FEEDBACK.md).
 
@@ -78,7 +78,7 @@ Check your keys and model access: `.venv/bin/python scripts/check_live.py`.
 Draft everything due soon from the command line (what a scheduled job runs): `.venv/bin/kept sweep`.
 
 **Docker:** `docker buildx build --platform linux/amd64 -t kept .` then
-`docker run -p 8000:8000 --env-file .env kept`. Deploying to Nebius: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+`docker run -p 8000:8000 --env-file .env kept`. Deploying (Render, free): [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ### Configuration
 
