@@ -138,7 +138,7 @@
   padding: var(--s-6) 0 var(--s-5);
 }
 .hero h1 {
-  max-width: 24ch;
+  max-width: 42ch;
   font: 600 var(--step-4) / 1.08 var(--font-display);
   letter-spacing: -0.03em;
   text-wrap: balance;
