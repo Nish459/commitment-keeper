@@ -36,8 +36,8 @@ def sample_mails(today: date) -> list[Mail]:
             ("Priya Raman", "priya@acme.example"),
             me,
             "Re: Partnership terms",
-            "Thanks for the call yesterday. I'll send over the signed NDA by Thursday so legal "
-            "can start. Could you share the draft terms before then?",
+            "Thanks for the call yesterday. I'll send over the signed NDA by end of next week so "
+            "legal can start. Could you share the draft terms before then?",
         ),
         _mail(
             today,
@@ -45,16 +45,16 @@ def sample_mails(today: date) -> list[Mail]:
             me,
             ("Aisha Khan", "aisha@northwind.example"),
             "Project timeline",
-            "Hi Aisha, good to catch up. I'll send you the revised project timeline by Friday, "
-            "with the new milestones marked.",
+            "Hi Aisha, good to catch up. I'll send you the revised project timeline by next "
+            "Monday, with the new milestones marked.",
         ),
         _mail(
             today,
-            3,
+            1,
             ("Tom Becker", "tom@northwind.example"),
             me,
-            "Demo room for Tuesday",
-            "Quick note on Tuesday's demo. I'll book the large meeting room and confirm with "
+            "Demo room booking",
+            "Quick note on the demo. I'll book the large meeting room and confirm with "
             "you by tomorrow.",
         ),
         _mail(
@@ -64,7 +64,7 @@ def sample_mails(today: date) -> list[Mail]:
             ("Lee Chen", "lee@partner.example"),
             "Intro to security",
             "Hi Lee, yes, happy to help with the security questionnaire. I'll introduce you to "
-            "our security lead by Wednesday.",
+            "our security lead by next Wednesday.",
         ),
         _mail(
             today,

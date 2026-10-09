@@ -324,7 +324,7 @@ async def test_scanning_the_sample_inbox_over_the_api(
                 person="Priya",
                 description="send the signed NDA",
                 due_phrase="by Thursday",
-                source_quote="I'll send over the signed NDA by Thursday",
+                source_quote="I'll send over the signed NDA by end of next week",
             )
         ]
     )

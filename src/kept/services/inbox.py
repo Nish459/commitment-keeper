@@ -14,6 +14,10 @@ from kept.domain.text import sentence_case
 from kept.services.extraction import ExtractionService
 
 _CONCURRENCY = 4
+_DESCRIPTION_RULE = (
+    "Write description as a short imperative that names people instead of saying 'you' or 'me', "
+    "for example 'Send Aisha the revised timeline'."
+)
 _AUTOMATED_SENDER = re.compile(r"no-?reply|do-?not-?reply|newsletter|notifications?@|mailer-daemon")
 
 
@@ -38,13 +42,15 @@ def _context(mail: Mail) -> str:
         recipients = ", ".join(mail.to_names) or "someone"
         return (
             f"This is an email I wrote to {recipients}. Promises I make in it are owed_by_me, "
-            "and person is the recipient I made them to."
+            "and person is the recipient I made them to. "
+            f"{_DESCRIPTION_RULE}"
         )
     sender = mail.sender_name or "the sender"
     return (
         f"This is an email written to me by {sender}, not by me. Inside it, 'I' and 'we' mean "
         f"{sender}. A promise {sender} makes to me is owed_to_me with person '{sender}'. "
-        "A request addressed to me is not a promise I made, so ignore requests."
+        "A request addressed to me is not a promise I made, so ignore requests. "
+        f"{_DESCRIPTION_RULE}"
     )
 
 
