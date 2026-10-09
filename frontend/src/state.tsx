@@ -18,6 +18,8 @@ import type {
   Draft,
   NewPromise,
   PersonSummary,
+  ScanResult,
+  Suggestion,
   WeekCheck,
 } from "./types";
 
@@ -41,6 +43,7 @@ export interface State {
   profileName: string;
   profileOpen: boolean;
   weekCheck: WeekCheck | null;
+  inbox: ScanResult | null;
   attachments: Record<number, Attachment[]>;
   selectedId: number | null;
   filter: FilterId;
@@ -69,6 +72,7 @@ export const initialState: State = {
   profileName: "",
   profileOpen: false,
   weekCheck: null,
+  inbox: null,
   attachments: {},
   selectedId: null,
   filter: "open",
@@ -94,6 +98,7 @@ type Action =
   | { type: "profile"; name: string }
   | { type: "profileDialog"; open: boolean }
   | { type: "weekCheck"; result: WeekCheck }
+  | { type: "inbox"; result: ScanResult | null }
   | { type: "attachments"; draftId: number; files: Attachment[] }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
@@ -127,6 +132,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, attachments: { ...state.attachments, [action.draftId]: action.files } };
     case "weekCheck":
       return { ...state, weekCheck: action.result };
+    case "inbox":
+      return { ...state, inbox: action.result };
     case "profileDialog":
       return { ...state, profileOpen: action.open };
     case "select":
@@ -177,6 +184,9 @@ export interface Actions {
   prepare: (commitmentId: number) => Promise<void>;
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
+  scanInbox: (input: File[] | "sample") => Promise<void>;
+  acceptSuggestions: (suggestions: Suggestion[]) => Promise<void>;
+  dismissInbox: () => void;
   loadAttachments: (draftId: number) => Promise<void>;
   addAttachments: (draftId: number, files: File[]) => Promise<void>;
   removeAttachment: (draftId: number, attachmentId: number) => Promise<void>;
@@ -339,6 +349,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
             toast(error instanceof Error ? error.message : "Something went wrong.", true);
           }
         }),
+
+      scanInbox: (input) =>
+        withBusy("inbox", async () => {
+          try {
+            dispatch({ type: "inbox", result: await api.scanInbox(input) });
+            await refresh(); // the scan's requests now show in the privacy log
+          } catch (error) {
+            toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          }
+        }),
+
+      acceptSuggestions: (suggestions) =>
+        withBusy("inbox-add", async () => {
+          try {
+            const added = await api.acceptSuggestions(suggestions);
+            dispatch({ type: "inbox", result: null });
+            await refresh();
+            const [first] = added;
+            if (first) dispatch({ type: "select", id: first.id });
+            toast(added.length === 1 ? "Added 1 promise." : `Added ${added.length} promises.`);
+          } catch (error) {
+            toast(error instanceof Error ? error.message : "Something went wrong.", true);
+          }
+        }),
+
+      dismissInbox: () => dispatch({ type: "inbox", result: null }),
 
       sweep: () =>
         withBusy("sweep", async () => {

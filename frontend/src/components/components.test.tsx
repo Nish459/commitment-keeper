@@ -10,12 +10,14 @@ import { DemoBanner } from "./DemoBanner";
 import { Composer } from "./Composer";
 import { Detail, quoteText } from "./Detail";
 import { Hero } from "./Hero";
+import { InboxPanel } from "./InboxPanel";
 import { WeekCheckPanel } from "./WeekCheckPanel";
 import { Ledger } from "./Ledger";
 import { PrivacyLog, PrivacyLogButton } from "./PrivacyLog";
 import { ProfileDialog } from "./ProfileDialog";
 import { DraftBody } from "./RichText";
 import { buildColumns } from "./Timeline";
+import type { ScanResult } from "../types";
 
 describe("Hero", () => {
   it("invites the first note when nothing is tracked", async () => {
@@ -861,5 +863,87 @@ describe("previewText", () => {
 
   it("is empty for an empty body", () => {
     expect(previewText("")).toBe("");
+  });
+});
+
+describe("InboxPanel", () => {
+  const found = (overrides: Partial<ScanResult> = {}): ScanResult => ({
+    emails_read: 6,
+    emails_skipped: 1,
+    suggestions: [
+      {
+        direction: "owed_to_me",
+        person: "Priya Raman",
+        description: "Send the signed NDA",
+        due: "2026-10-16",
+        source_id: "Email: Partnership terms",
+        source_quote: "I'll send over the signed NDA by end of next week",
+      },
+      {
+        direction: "owed_by_me",
+        person: "Aisha Khan",
+        description: "Send Aisha the revised timeline",
+        due: null,
+        source_id: "Email: Project timeline",
+        source_quote: "I'll send you the revised project timeline",
+      },
+    ],
+    ...overrides,
+  });
+
+  it("offers files or a sample inbox, and says what leaves the machine", async () => {
+    const { actions } = renderApp(<InboxPanel />);
+    expect(screen.getByText(/the sender.s name, the subject and the text go to Nebius/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try a sample inbox" }));
+    expect(actions.scanInbox).toHaveBeenCalledWith("sample");
+  });
+
+  it("scans the files the user chooses", async () => {
+    const { actions } = renderApp(<InboxPanel />);
+    const file = new File(["From: a@b.example"], "terms.eml", { type: "message/rfc822" });
+    await userEvent.upload(screen.getByLabelText("Choose email files"), file);
+    expect(actions.scanInbox).toHaveBeenCalledWith([file]);
+  });
+
+  it("shows progress while reading", () => {
+    renderApp(<InboxPanel />, { busy: { inbox: true } });
+    expect(screen.getByText("Reading your mail")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try a sample inbox" })).toBeDisabled();
+  });
+
+  it("lists what it found, with who owes whom, the deadline and the exact words", () => {
+    renderApp(<InboxPanel />, { inbox: found() });
+    expect(screen.getByText("Found 2 promises in 6 emails.")).toBeInTheDocument();
+    expect(screen.getByText("Priya Raman promised you: Send the signed NDA")).toBeInTheDocument();
+    expect(screen.getByText("You promised Aisha Khan: Send Aisha the revised timeline")).toBeInTheDocument();
+    expect(screen.getByText(/I'll send over the signed NDA by end of next week/)).toBeInTheDocument();
+    expect(screen.getByText(/1 email not read/)).toBeInTheDocument();
+  });
+
+  it("adds only the promises that are still ticked", async () => {
+    const { actions } = renderApp(<InboxPanel />, { inbox: found() });
+    await userEvent.click(screen.getByRole("checkbox", { name: /Aisha Khan/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add 1 promise to my ledger" }));
+    expect(actions.acceptSuggestions).toHaveBeenCalledWith([found().suggestions[0]]);
+  });
+
+  it("cannot add when everything is unticked", async () => {
+    renderApp(<InboxPanel />, { inbox: found() });
+    for (const box of screen.getAllByRole("checkbox")) await userEvent.click(box);
+    expect(screen.getByRole("button", { name: "Add 0 promises to my ledger" })).toBeDisabled();
+  });
+
+  it("can be dismissed without adding anything", async () => {
+    const { actions } = renderApp(<InboxPanel />, { inbox: found() });
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(actions.dismissInbox).toHaveBeenCalled();
+    expect(actions.acceptSuggestions).not.toHaveBeenCalled();
+  });
+
+  it("says plainly when there is nothing new", () => {
+    renderApp(<InboxPanel />, { inbox: found({ suggestions: [] }) });
+    expect(screen.getByText("No new promises found.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scan other mail" })).toBeInTheDocument();
   });
 });

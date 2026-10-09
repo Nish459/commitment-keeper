@@ -16,6 +16,7 @@ the deadline, and shows you exactly what left your machine. Nothing is sent with
 |---|---|
 | Paste meeting notes, or type a promise by hand | Finds each promise, who owes whom, and a due date, with the exact quote it came from |
 | Click **Research and draft** (or **Draft all due soon**) | Searches the web, writes a **cited** email, and flags it if it says "attached" |
+| Choose email files (`.eml` or `.mbox`), or try the sample inbox | Reads each email, suggests the promises in them (both directions, with the exact words and a deadline worked out from the date sent), and adds only the ones you tick |
 | Click **Check my week** | Reads every open promise and flags conflicts, late dependencies and risks, then suggests an order |
 | Review a draft | Edit it, attach files, and approve. Only then is anything sent. |
 | Open the **Privacy log** panel | See every request Kept sent out: host, path and size, never content |
@@ -94,8 +95,9 @@ domain  <-  services  <-  adapters (llm, tavily, sqlite, smtp, egress)  <-  api 
 
 - `domain`: plain models, ports and errors, no I/O.
 - `services`: extraction, keeper (research and drafting), review, sweep, planner (week check), people
-  (history), attachments, calendar, manual entry.
-- `adapters`: Token Factory client, Tavily, SQLite, SMTP, and the audited egress client.
+  (history), attachments, calendar, manual entry, inbox (finds promises in mail).
+- `adapters`: Token Factory client, Tavily, SQLite, SMTP, the audited egress client, and a reader for
+  `.eml`/`.mbox` files.
 - `container.py` is the only place adapters are wired to services. `demo.py` builds one private
   workspace per visitor.
 - `frontend/`: React 19, TypeScript and Vite, with self-hosted fonts and no third-party requests.
@@ -104,7 +106,9 @@ domain  <-  services  <-  adapters (llm, tavily, sqlite, smtp, egress)  <-  api 
 
 - It cannot create your files or act in the world: "send the Q4 roadmap" produces a cover note and
   asks you to attach the file; "book the venue" asks for the missing details.
-- It does not read your mailbox or calendar. Promises come from notes you paste or type.
+- It does not connect to Gmail or Outlook, and it does not read your calendar. Mail comes in as `.eml` or
+  `.mbox` files you choose (a Google Takeout export works). Only the sender's name, the subject and the
+  text go to the model, never addresses, and nothing is stored until you add a promise.
 - The hosted demo is ephemeral by design, so cross-session memory is shown on a local install.
 - NVIDIA NemoClaw, OpenShell and Hermes Agent were evaluated but not used (alpha, aimed at DGX/WSL).
   Kept implements its own audited egress allowlist instead.

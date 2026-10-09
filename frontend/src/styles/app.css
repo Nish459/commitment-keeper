@@ -1101,11 +1101,58 @@ tr.is-blocked td {
 }
 
 /* ---------- Week check ---------- */
-.week-check {
+.week-check,
+.inbox {
   margin-bottom: var(--s-6);
   padding-top: var(--s-4);
   border-top: 2px solid var(--rule);
 }
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.inbox-result {
+  display: grid;
+  gap: var(--s-3);
+}
+.suggestions {
+  display: grid;
+  gap: var(--s-2);
+  list-style: none;
+  padding: 0;
+}
+.suggestion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.suggestion input {
+  margin-top: 0.3rem;
+  accent-color: var(--cobalt);
+}
+.suggestion > span {
+  display: grid;
+  gap: var(--s-1);
+}
+.suggestion-title {
+  font-weight: 600;
+}
+.suggestion-meta {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+.suggestion-quote {
+  color: var(--muted);
+  font-style: italic;
+  font-size: var(--step--1);
+}
+
 .week-summary {
   max-width: 62ch;
   font: 500 var(--step-1) / 1.4 var(--font-display);

@@ -92,3 +92,18 @@ export interface PersonSummary {
   last_emailed_at: string | null;
   last_subject: string | null;
 }
+
+export interface Suggestion {
+  direction: Direction;
+  person: string;
+  description: string;
+  due: string | null;
+  source_id: string;
+  source_quote: string;
+}
+
+export interface ScanResult {
+  emails_read: number;
+  emails_skipped: number;
+  suggestions: Suggestion[];
+}

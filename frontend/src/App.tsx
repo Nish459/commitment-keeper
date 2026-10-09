@@ -2,6 +2,7 @@ import { Composer } from "./components/Composer";
 import { DemoBanner } from "./components/DemoBanner";
 import { Detail } from "./components/Detail";
 import { Hero } from "./components/Hero";
+import { InboxPanel } from "./components/InboxPanel";
 import { Ledger } from "./components/Ledger";
 import { PrivacyLog, PrivacyLogButton } from "./components/PrivacyLog";
 import { ProfileDialog } from "./components/ProfileDialog";
@@ -41,6 +42,7 @@ export function App() {
         <DemoBanner />
         <Hero />
         <Timeline />
+        <InboxPanel />
         <WeekCheckPanel />
         <div className="split">
           <Ledger />

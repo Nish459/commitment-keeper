@@ -6,6 +6,8 @@ import type {
   Draft,
   NewPromise,
   PersonSummary,
+  ScanResult,
+  Suggestion,
   SweepResult,
   WeekCheck,
 } from "./types";
@@ -58,6 +60,14 @@ export const api = {
     post<Commitment[]>("/api/notes", { source_id: sourceId, text }),
   sweep: () => post<SweepResult>("/api/sweep"),
   weekCheck: () => post<WeekCheck>("/api/week-check"),
+  scanInbox: (input: File[] | "sample") => {
+    const form = new FormData();
+    if (input === "sample") form.append("sample", "true");
+    else input.forEach((file) => form.append("files", file));
+    return request<ScanResult>("/api/inbox/scan", { method: "POST", body: form });
+  },
+  acceptSuggestions: (suggestions: Suggestion[]) =>
+    post<Commitment[]>("/api/inbox/accept", { suggestions }),
   prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
   updateDraft: (draftId: number, subject: string, body: string) =>
     put<Draft>(`/api/drafts/${draftId}`, { subject, body }),
