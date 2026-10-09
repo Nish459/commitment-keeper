@@ -1,6 +1,43 @@
-# Deploying Kept to Nebius Serverless
+# Deploying Kept
 
-This puts the **public demo** on a Nebius Serverless AI **endpoint**: one small CPU container (the models
+There are two ways to host the public demo. **Option A is free and what we use.** Option B needs a funded
+Nebius AI Cloud billing account (the hackathon promo credits apply to Token Factory only, so an AI Cloud
+project starts at a $0 balance and refuses to create resources).
+
+The rules do not require hosting on Nebius: *"runs on Nebius Token Factory or Nebius AI Cloud"* is met by
+making runtime calls to the Token Factory API, which Kept does on every request.
+
+## Option A (free): a Hugging Face Space
+
+The Space is a tiny repo with two files (`deploy/huggingface/Dockerfile` and `README.md`). Its
+Dockerfile builds Kept from the public GitHub repo and **always starts in demo mode**.
+
+1. Create a free account at huggingface.co.
+2. **Create new Space**: name it `kept`, pick **Docker** (Blank), the free **CPU basic** hardware,
+   visibility **Public**.
+3. **Files** tab, then **Add file, Upload files**: upload `deploy/huggingface/Dockerfile` and
+   `deploy/huggingface/README.md` (replace the default README).
+4. **Settings, Variables and secrets, New secret** (secrets, not variables): add
+   `KEPT_NEBIUS_API_KEY`, `KEPT_TAVILY_API_KEY` and `KEPT_DEMO_ACCESS_CODE` (a code you choose).
+5. Watch **Logs** while it builds (a few minutes). When it says Running, open the app at its **own
+   address**, `https://<username>-kept.hf.space` (menu, "Embed this Space"). Do not use the
+   huggingface.co/spaces page for the demo link: it embeds the app in an iframe, and browsers block the
+   session cookie there, so every click would start a new empty workspace.
+6. Check it like step 5 of Option B below: banner and sample promises, **Find promises**, **Research and
+   draft**, the access code, and the Perimeter panel showing only Nebius and Tavily.
+
+Good to know:
+- Free Spaces **sleep after a period of inactivity** and wake when visited (about a minute). Open the link
+  yourself shortly before judging. Check Hugging Face's current policy for the exact timeout.
+- Sleeping or restarting clears the in-memory demo workspaces. That is fine for a demo.
+- To ship new code: push to GitHub, then **Settings, Factory reboot**. The Dockerfile clones
+  `REPO_REF` (default `master`) at build time. **Before submitting, tag the release and set `REPO_REF` to
+  the tag**, so a later change cannot break the judged demo.
+- Never put a key in the Dockerfile or README. Only the secrets screen.
+
+## Option B (needs paid AI Cloud billing): Nebius Serverless
+
+Puts the **public demo** on a Nebius Serverless AI **endpoint**: one small CPU container (the models
 run on Token Factory, so no GPU is needed). Every visitor gets a private temporary workspace.
 
 Commands marked **(verified)** come straight from the Nebius docs. Anything marked **(check `--help`)** I
