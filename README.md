@@ -8,7 +8,7 @@ People forget what they promised. Kept reads your notes, finds the commitments i
 you made and the ones made to you), and keeps them: it researches, drafts the email, reminds you before
 the deadline, and shows you exactly what left your machine. Nothing is sent without your approval.
 
-> **Live demo:** _link added after deployment_ (see [Trying the demo](#trying-the-demo))
+> **Live demo:** https://commitment-keeper.onrender.com (free hosting, so the first load after idle can take about a minute; see [Trying the demo](#trying-the-demo))
 
 ## What it does
 
