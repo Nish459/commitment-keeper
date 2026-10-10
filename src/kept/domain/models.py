@@ -55,10 +55,22 @@ class Suggestion(BaseModel):
     source_quote: str
 
 
+class Completion(BaseModel):
+    """An email showing an open promise was already kept. The user decides whether to close it."""
+
+    commitment_id: int
+    direction: Direction
+    person: str
+    description: str
+    source_id: str
+    source_quote: str
+
+
 class ScanResult(BaseModel):
     emails_read: int
     emails_skipped: int
     suggestions: list[Suggestion]
+    completions: list[Completion] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)

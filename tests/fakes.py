@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from kept.domain.errors import EmailError, LLMError, SearchError
 from kept.domain.models import Attachment, Direction, SearchResult, Tier
 from kept.services.extraction import ExtractedCommitment, ExtractionResult
+from kept.services.inbox import CompletionResult
 from kept.services.keeper import DraftContent, ResearchPlan
 from kept.services.planner import Concern, OrderedItem, WeekCheck
 
@@ -28,6 +29,7 @@ class ScriptedLLM:
                     )
                 ]
             ),
+            CompletionResult: CompletionResult(completions=[]),
             ResearchPlan: ResearchPlan(queries=["competitors"]),
             DraftContent: DraftContent(subject="Comparison", body="Here it is [1]."),
             WeekCheck: WeekCheck(
@@ -45,6 +47,7 @@ class ScriptedLLM:
         }
         self.error: Exception | None = None
         self.prompts: list[str] = []  # the system prompt of every call, in order
+        self.users: list[str] = []  # the user message of every call, in order
         self.fail_after: int | None = None  # raise once this many calls have been made
 
     async def complete_json[T: BaseModel](
@@ -55,6 +58,7 @@ class ScriptedLLM:
         **kwargs: Any,
     ) -> T:
         self.prompts.append(messages[0]["content"])
+        self.users.append(messages[-1]["content"])
         if self.error is not None or (
             self.fail_after is not None and len(self.prompts) > self.fail_after
         ):

@@ -141,6 +141,16 @@ def accept_suggestions(body: AcceptIn, c: Deps) -> list[Commitment]:
     return c.inbox.accept([Suggestion(**item.model_dump()) for item in body.suggestions])
 
 
+class CompleteIn(BaseModel):
+    commitment_ids: list[int] = Field(min_length=1, max_length=50)
+
+
+@router.post("/inbox/complete")
+def complete_promises(body: CompleteIn, c: Deps) -> list[Commitment]:
+    """Mark as kept the promises the user confirmed an email shows were already done."""
+    return c.inbox.mark_kept(body.commitment_ids)
+
+
 @router.get("/commitments")
 def list_commitments(c: Deps, status: CommitmentStatus | None = None) -> list[Commitment]:
     return c.commitments.list(status)

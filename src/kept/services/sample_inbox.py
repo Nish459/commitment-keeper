@@ -68,6 +68,23 @@ def sample_mails(today: date) -> list[Mail]:
         ),
         _mail(
             today,
+            1,
+            ("Priya Raman", "priya@acme.example"),
+            me,
+            "Q3 pricing deck",
+            "Hi, as promised, attached is the Q3 pricing deck. Shout if anything looks off.",
+        ),
+        _mail(
+            today,
+            2,
+            me,
+            ("Marcus Webb", "marcus@northwind.example"),
+            "Re: Onboarding doc",
+            "Hi Marcus, I've reviewed your onboarding doc and left my comments in it. Overall it "
+            "looks good.",
+        ),
+        _mail(
+            today,
             4,
             ("Sam Ortiz", "sam@vendor.example"),
             me,

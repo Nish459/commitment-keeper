@@ -10,9 +10,9 @@ from kept.adapters.sqlite import Database, SqliteCommitmentRepository
 from kept.config import Settings
 from kept.demo import build_session_manager
 from kept.domain.errors import InvalidMailError, LLMError
-from kept.domain.models import Commitment, Direction, Mail, Suggestion
+from kept.domain.models import Commitment, CommitmentStatus, Direction, Mail, Suggestion
 from kept.services.extraction import ExtractedCommitment, ExtractionResult, ExtractionService
-from kept.services.inbox import InboxService, infer_owner
+from kept.services.inbox import CompletionResult, FoundCompletion, InboxService, infer_owner
 from kept.services.sample_inbox import sample_mails
 from tests.fakes import FakeSearch, ScriptedLLM
 from tests.helpers import demo_client
@@ -68,7 +68,7 @@ def _service(
     llm: ScriptedLLM, repo: SqliteCommitmentRepository | None = None, **kw: object
 ) -> tuple[InboxService, SqliteCommitmentRepository]:
     repo = repo or SqliteCommitmentRepository(Database(":memory:"))
-    return InboxService(ExtractionService(llm, repo), repo, **kw), repo  # type: ignore[arg-type]
+    return InboxService(ExtractionService(llm, repo), repo, llm, **kw), repo  # type: ignore[arg-type]
 
 
 # ---- reading mail files ----
@@ -201,6 +201,7 @@ async def test_the_model_is_told_who_is_speaking_and_never_sees_addresses() -> N
     assert "written to me by Priya Raman" in prompts
     assert "I wrote to Aisha Khan" in prompts
     assert "@" not in prompts
+    assert prompts.count("that is not a promise") == 2  # both voices ignore reports of work done
 
 
 async def test_the_owner_is_guessed_from_the_mailbox_when_not_configured() -> None:
@@ -425,7 +426,7 @@ async def test_the_demo_limits_how_often_and_how_much_mail_is_scanned(tmp_path: 
     async with demo_client(settings, manager) as client:
         first = await client.post("/api/inbox/scan", data={"sample": "true"})
         assert first.status_code == 200
-        assert first.json()["emails_read"] + first.json()["emails_skipped"] == 7
+        assert first.json()["emails_read"] + first.json()["emails_skipped"] == 9
         assert first.json()["emails_read"] <= 2
 
         second = await client.post("/api/inbox/scan", data={"sample": "true"})
@@ -435,3 +436,214 @@ async def test_the_demo_limits_how_often_and_how_much_mail_is_scanned(tmp_path: 
         await client.post("/api/demo/access", json={"code": "open-sesame"})
         assert (await client.post("/api/inbox/scan", data={"sample": "true"})).status_code == 200
     await manager.aclose()
+
+
+# ---- noticing that a promise was already kept ----
+
+
+def _open_promise(
+    repo: SqliteCommitmentRepository,
+    *,
+    direction: Direction = Direction.OWED_TO_ME,
+    person: str = "Priya",
+    description: str = "Share the Q3 pricing deck",
+    status: CommitmentStatus = CommitmentStatus.OPEN,
+) -> int:
+    saved = repo.add(
+        Commitment(
+            direction=direction,
+            person=person,
+            description=description,
+            status=status,
+            source_id="Sample notes",
+            source_quote=f"{person} said so",
+        )
+    )
+    return saved.id or 0
+
+
+DELIVERED = "Hi, as promised, attached is the Q3 pricing deck."
+
+
+def _delivery_mail(**overrides: object) -> Mail:
+    return _mail(
+        subject="Q3 pricing deck", body=f"{DELIVERED} Shout if anything looks off.", **overrides
+    )
+
+
+def _says_done(
+    llm: ScriptedLLM, commitment_id: int, quote: str = DELIVERED, email: int = 1
+) -> None:
+    llm.responses[CompletionResult] = CompletionResult(
+        completions=[FoundCompletion(promise=commitment_id, email=email, quote=quote)]
+    )
+
+
+async def test_an_email_that_delivers_what_was_promised_is_offered_as_done() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm)
+    promise = _open_promise(repo)
+    _says_done(llm, promise)
+    result = await service.scan([_delivery_mail()], TODAY, max_emails=10)
+    [done] = result.completions
+    assert (done.commitment_id, done.person, done.description) == (
+        promise,
+        "Priya",
+        "Share the Q3 pricing deck",
+    )
+    assert (done.source_id, done.source_quote) == ("Email: Q3 pricing deck", DELIVERED)
+    stored = repo.get(promise)
+    assert stored is not None and stored.status is CommitmentStatus.OPEN  # offered, not applied
+
+
+async def test_the_model_sees_only_open_promises_and_names_never_addresses() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm, my_addresses=["you@kept.example"])
+    _open_promise(repo)
+    closed = _open_promise(repo, description="Already finished", status=CommitmentStatus.DONE)
+    mine = _mail(
+        sender_name="You", sender_address="you@kept.example", subject="Mine", body="Sent it."
+    )
+    await service.scan([_delivery_mail(), mine], TODAY, max_emails=10)
+    prompt, user = llm.prompts[-1], llm.users[-1]
+    assert "Share the Q3 pricing deck" in prompt and "Already finished" not in prompt
+    assert f"{closed} |" not in prompt
+    assert "from me" in user and "from Priya Raman" in user
+    assert "Promise 1:" in prompt and "Priya owes me: Share the Q3 pricing deck" in prompt
+    assert "@" not in prompt + user
+
+
+@pytest.mark.parametrize(
+    ("case", "kwargs"),
+    [
+        ("a quote that is not in the email", {"quote": "I sent the deck last week."}),
+        ("an unknown promise number", {"promise": 999}),
+        ("an email number that does not exist", {"email": 5}),
+        ("an empty quote", {"quote": "  "}),
+    ],
+)
+async def test_made_up_completions_are_dropped(case: str, kwargs: dict[str, object]) -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm)
+    _open_promise(repo)
+    claim: dict[str, object] = {"promise": 1, "email": 1, "quote": DELIVERED}
+    llm.responses[CompletionResult] = CompletionResult(
+        completions=[FoundCompletion(**{**claim, **kwargs})]
+    )
+    assert (await service.scan([_delivery_mail()], TODAY, max_emails=10)).completions == [], case
+
+
+async def test_only_the_right_person_can_show_a_promise_was_kept() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm, my_addresses=["you@kept.example"])
+    theirs = _open_promise(repo)  # Priya owes me
+    mine = _open_promise(
+        repo, direction=Direction.OWED_BY_ME, person="Marcus", description="Review his doc"
+    )
+
+    # Someone else's email cannot show Priya delivered.
+    _says_done(llm, theirs)
+    stranger = _delivery_mail(sender_name="Tom Becker", sender_address="tom@x.example")
+    assert (await service.scan([stranger], TODAY, max_emails=10)).completions == []
+
+    # Neither can my own email: she owes me, I cannot deliver it for her.
+    from_me = _delivery_mail(sender_name="You", sender_address="you@kept.example")
+    assert (await service.scan([from_me], TODAY, max_emails=10)).completions == []
+
+    # And what I owe Marcus is only shown by an email I wrote, not one he wrote.
+    _says_done(llm, mine, quote=DELIVERED)
+    assert (await service.scan([_delivery_mail()], TODAY, max_emails=10)).completions == []
+
+
+async def test_something_i_owe_is_closed_by_an_email_i_wrote() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm, my_addresses=["you@kept.example"])
+    mine = _open_promise(
+        repo, direction=Direction.OWED_BY_ME, person="Marcus", description="Review his doc"
+    )
+    comments = "I've reviewed your onboarding doc and left my comments."
+    _says_done(llm, mine, quote=comments)
+    sent = _mail(
+        sender_name="You",
+        sender_address="you@kept.example",
+        to_names=("Marcus Webb",),
+        to_addresses=("marcus@x.example",),
+        subject="Re: Onboarding doc",
+        body=f"Hi Marcus, {comments}",
+    )
+    [done] = (await service.scan([sent], TODAY, max_emails=10)).completions
+    assert done.direction is Direction.OWED_BY_ME and done.person == "Marcus"
+
+
+async def test_each_promise_is_offered_once_even_if_the_model_repeats_itself() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, repo = _service(llm)
+    _open_promise(repo)
+    claim = FoundCompletion(promise=1, email=1, quote=DELIVERED)
+    llm.responses[CompletionResult] = CompletionResult(completions=[claim, claim])
+    assert len((await service.scan([_delivery_mail()], TODAY, max_emails=10)).completions) == 1
+
+
+async def test_no_open_promises_means_no_extra_model_call() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    service, _ = _service(llm)
+    result = await service.scan([_delivery_mail()], TODAY, max_emails=10)
+    assert result.completions == [] and len(llm.prompts) == 1  # only the extraction call
+
+
+async def test_a_failure_while_looking_for_finished_promises_does_not_spoil_the_scan() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = _extraction()
+    llm.fail_after = 1  # the extraction call succeeds, the completion call fails
+    service, repo = _service(llm)
+    _open_promise(repo, person="Sam", description="Something else")
+    result = await service.scan([_mail()], TODAY, max_emails=10)
+    assert len(result.suggestions) == 1 and result.completions == []
+
+
+def test_confirmed_promises_are_closed_and_unknown_or_closed_ones_skipped() -> None:
+    service, repo = _service(ScriptedLLM())
+    open_one = _open_promise(repo)
+    closed = _open_promise(repo, description="Done already", status=CommitmentStatus.DONE)
+    closed_now = service.mark_kept([open_one, open_one, closed, 999])
+    assert [c.id for c in closed_now] == [open_one]
+    assert all(c.status is CommitmentStatus.DONE for c in closed_now)
+    stored = repo.get(open_one)
+    assert stored is not None and stored.status is CommitmentStatus.DONE
+
+
+async def test_the_api_offers_finished_promises_and_closes_the_ones_confirmed(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, _ = env
+    llm.responses[ExtractionResult] = ExtractionResult(commitments=[])
+    promise = (
+        await client.post(
+            "/api/commitments",
+            json={"direction": "owed_to_me", "person": "Priya", "description": "Share the deck"},
+        )
+    ).json()["id"]
+    readable = [
+        m
+        for m in sorted(sample_mails(TODAY), key=lambda m: m.sent or date.min, reverse=True)
+        if "newsletter" not in m.sender_address
+    ]
+    position = next(i for i, m in enumerate(readable, 1) if m.subject == "Q3 pricing deck")
+    _says_done(llm, promise, quote="attached is the Q3 pricing deck", email=position)
+
+    scan = (await client.post("/api/inbox/scan", data={"sample": "true"})).json()
+    assert [c["commitment_id"] for c in scan["completions"]] == [promise]
+    assert (await client.get("/api/commitments", params={"status": "done"})).json() == []
+
+    closed = await client.post("/api/inbox/complete", json={"commitment_ids": [promise]})
+    assert [c["status"] for c in closed.json()] == ["done"]
+    assert (
+        await client.post("/api/inbox/complete", json={"commitment_ids": []})
+    ).status_code == 422

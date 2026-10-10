@@ -127,7 +127,9 @@ def build_container(
         contacts=contacts,
         profile=profile,
         extraction=extraction,
-        inbox=InboxService(extraction, commitments, my_addresses=settings.my_addresses),
+        inbox=InboxService(
+            extraction, commitments, structured_llm, my_addresses=settings.my_addresses
+        ),
         keeper=keeper,
         planner=PlannerService(structured_llm, commitments),
         manual=ManualEntryService(commitments),

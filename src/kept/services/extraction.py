@@ -41,7 +41,8 @@ class ExtractionResult(BaseModel):
     commitments: list[ExtractedCommitment]
 
 
-def _normalize(text: str) -> str:
+def normalize_text(text: str) -> str:
+    """Case and spacing folded, so a quote is compared with the text it came from fairly."""
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
@@ -77,11 +78,11 @@ class ExtractionService:
             temperature=0.0,
             thinking=self._thinking,
         )
-        haystack = _normalize(text)
-        seen = {(c.source_id, _normalize(c.source_quote)) for c in self._repo.list()}
+        haystack = normalize_text(text)
+        seen = {(c.source_id, normalize_text(c.source_quote)) for c in self._repo.list()}
         found: list[Commitment] = []
         for item in result.commitments:
-            quote = _normalize(item.source_quote)
+            quote = normalize_text(item.source_quote)
             if not quote or quote not in haystack or (source_id, quote) in seen:
                 continue
             seen.add((source_id, quote))
