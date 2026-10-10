@@ -600,6 +600,10 @@
   color: var(--muted);
   font-size: var(--step--1);
 }
+.draft-summary-model {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
 .draft-preview {
   display: -webkit-box;
   overflow: hidden;

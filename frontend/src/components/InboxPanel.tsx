@@ -103,7 +103,10 @@ export function InboxPanel() {
           <span className="spinner" aria-hidden="true" />
           <div>
             <p className="working-title">Reading your mail</p>
-            <p className="note">Nemotron is looking for promises in each email. This can take a few seconds.</p>
+            <p className="note">
+              Nemotron Nano reads each email, then Nemotron Super checks for finished promises. This can take
+              a few seconds.
+            </p>
           </div>
         </div>
       )}
@@ -116,8 +119,8 @@ export function InboxPanel() {
             each change before it happens.
           </p>
           <p className="note">
-            Privacy: the sender&rsquo;s name, the subject and the text go to Nebius Token Factory. Nothing is
-            stored until you add it.
+            Privacy: the sender&rsquo;s name, the subject and the text go to Nebius Token Factory, to
+            Nemotron Nano and Super. Nothing is stored until you add it.
           </p>
         </>
       )}

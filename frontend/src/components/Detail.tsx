@@ -186,6 +186,9 @@ function DraftSummary({ draft }: { draft: Draft }) {
       <p className="draft-summary-label">{label}</p>
       <h3 className="draft-subject">{draft.subject}</h3>
       <p className="draft-preview">{previewText(draft.body)}</p>
+      <p className="draft-summary-model">
+        {reminder ? "Written by Nemotron Super." : "Researched with Tavily, written by Nemotron Super."}
+      </p>
       <button
         className={`btn ${pending ? "btn-primary" : "btn-secondary"}`}
         type="button"
