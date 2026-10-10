@@ -947,3 +947,37 @@ describe("InboxPanel", () => {
     expect(screen.getByRole("button", { name: "Scan other mail" })).toBeInTheDocument();
   });
 });
+
+describe("Detail when Kept needs the user's details", () => {
+  const asking = { commitments: [commitment()], selectedId: 1, needs: { 1: ["city", "dates"] } };
+
+  it("says what is missing and does not draft until the user supplies it", async () => {
+    const { actions } = renderApp(<Detail />, asking);
+    expect(screen.getByText("This one needs you")).toBeInTheDocument();
+    expect(screen.getByText("city")).toBeInTheDocument();
+    expect(screen.getByText("dates")).toBeInTheDocument();
+    const go = screen.getByRole("button", { name: "Research and draft" });
+    expect(go).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText("Your details"), "  Austin, Nov 4  ");
+    expect(go).toBeEnabled();
+    await userEvent.click(go);
+    expect(actions.prepare).toHaveBeenCalledWith(1, "Austin, Nov 4");
+  });
+
+  it("still asks sensibly when the model named nothing specific", () => {
+    renderApp(<Detail />, { ...asking, needs: { 1: [] } });
+    expect(screen.getByText(/a few details from you/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("What should the email say?")).toBeInTheDocument();
+  });
+
+  it("is only shown for the promise that asked", () => {
+    renderApp(<Detail />, {
+      commitments: [commitment({ id: 1 }), commitment({ id: 2, person: "Marcus" })],
+      selectedId: 2,
+      needs: { 1: ["city"] },
+    });
+    expect(screen.queryByText("This one needs you")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Research and draft" })).toBeEnabled();
+  });
+});

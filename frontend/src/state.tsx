@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { plural, startOfToday } from "./format";
 import type {
   Attachment,
@@ -44,6 +44,7 @@ export interface State {
   profileOpen: boolean;
   weekCheck: WeekCheck | null;
   inbox: ScanResult | null;
+  needs: Record<number, string[]>;
   attachments: Record<number, Attachment[]>;
   selectedId: number | null;
   filter: FilterId;
@@ -73,6 +74,7 @@ export const initialState: State = {
   profileOpen: false,
   weekCheck: null,
   inbox: null,
+  needs: {},
   attachments: {},
   selectedId: null,
   filter: "open",
@@ -99,6 +101,7 @@ type Action =
   | { type: "profileDialog"; open: boolean }
   | { type: "weekCheck"; result: WeekCheck }
   | { type: "inbox"; result: ScanResult | null }
+  | { type: "needs"; id: number; needs: string[] | null }
   | { type: "attachments"; draftId: number; files: Attachment[] }
   | { type: "select"; id: number | null }
   | { type: "filter"; filter: FilterId }
@@ -134,6 +137,10 @@ function reducer(state: State, action: Action): State {
       return { ...state, weekCheck: action.result };
     case "inbox":
       return { ...state, inbox: action.result };
+    case "needs": {
+      const { [action.id]: _removed, ...rest } = state.needs;
+      return { ...state, needs: action.needs ? { ...rest, [action.id]: action.needs } : rest };
+    }
     case "profileDialog":
       return { ...state, profileOpen: action.open };
     case "select":
@@ -181,7 +188,7 @@ export interface Actions {
   closeProfile: () => void;
   saveProfile: (name: string) => Promise<boolean>;
   dismissToast: (id: number) => void;
-  prepare: (commitmentId: number) => Promise<void>;
+  prepare: (commitmentId: number, details?: string) => Promise<void>;
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
   scanInbox: (input: File[] | "sample") => Promise<void>;
@@ -287,17 +294,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       dismissToast: (id) => dispatch({ type: "dismissToast", id }),
 
-      async prepare(commitmentId) {
+      async prepare(commitmentId, details) {
         dispatch({ type: "select", id: commitmentId });
         dispatch({ type: "sealed", id: null });
-        await withBusy(String(commitmentId), () =>
-          guarded(async () => {
-            await api.prepare(commitmentId);
+        await withBusy(String(commitmentId), async () => {
+          try {
+            await api.prepare(commitmentId, details);
+            dispatch({ type: "needs", id: commitmentId, needs: null });
             await refresh();
             dispatch({ type: "sealed", id: commitmentId });
             setTimeout(() => dispatch({ type: "sealed", id: null }), 1600);
-          }, "Draft ready for your review."),
-        );
+            toast("Draft ready for your review.");
+          } catch (error) {
+            if (error instanceof ApiError && error.needs) {
+              dispatch({ type: "needs", id: commitmentId, needs: error.needs });
+            } else {
+              toast(error instanceof Error ? error.message : "Something went wrong.", true);
+            }
+          }
+        });
         await refresh().catch(() => undefined);
       },
 
@@ -389,6 +404,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ? `Prepared ${plural(result.prepared.length, "draft")} for your review.`
                 : "Nothing needed drafting.",
               failed ? `${failed} failed. Open it and try again.` : "",
+              result.needs_you
+                ? `${result.needs_you === 1 ? "1 promise needs" : `${result.needs_you} promises need`} details from you.`
+                : "",
               result.skipped ? `${result.skipped} more will be picked up next time.` : "",
               result.stopped ?? "",
             ]

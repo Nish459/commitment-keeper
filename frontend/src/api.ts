@@ -12,7 +12,15 @@ import type {
   WeekCheck,
 } from "./types";
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  /** Set when Kept needs details from the user first: the list of what it needs. */
+  constructor(
+    message: string,
+    readonly needs: string[] | null = null,
+  ) {
+    super(message);
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
@@ -24,7 +32,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => ({}));
     const detail = (body as { detail?: unknown }).detail;
-    throw new ApiError(typeof detail === "string" ? detail : `Request failed (${response.status})`);
+    const needs = (body as { needs?: unknown }).needs;
+    throw new ApiError(
+      typeof detail === "string" ? detail : `Request failed (${response.status})`,
+      Array.isArray(needs) ? needs.filter((n): n is string => typeof n === "string") : null,
+    );
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -68,7 +80,8 @@ export const api = {
   },
   acceptSuggestions: (suggestions: Suggestion[]) =>
     post<Commitment[]>("/api/inbox/accept", { suggestions }),
-  prepare: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/prepare`),
+  prepare: (commitmentId: number, details?: string) =>
+    post<Draft>(`/api/commitments/${commitmentId}/prepare`, details ? { details } : undefined),
   updateDraft: (draftId: number, subject: string, body: string) =>
     put<Draft>(`/api/drafts/${draftId}`, { subject, body }),
   attachments: (draftId: number) => request<Attachment[]>(`/api/drafts/${draftId}/attachments`),

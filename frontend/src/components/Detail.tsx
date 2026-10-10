@@ -223,6 +223,48 @@ function ReviewDialog({ draft, person }: { draft: Draft; person: string }) {
   );
 }
 
+/** For promises Kept cannot do alone: say what is missing, then research once the user supplies it. */
+function NeedsDetails({ c, needs }: { c: Commitment; needs: string[] }) {
+  const { actions } = useApp();
+  const [details, setDetails] = useState("");
+  return (
+    <form
+      className="needs"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void actions.prepare(c.id, details.trim());
+      }}
+    >
+      <p className="needs-title">This one needs you</p>
+      <p className="note">
+        Kept can&rsquo;t do this one on its own, but it can research it and write the email once it has
+        {needs.length ? " these from you:" : " a few details from you."}
+      </p>
+      {needs.length > 0 && (
+        <ul className="needs-list">
+          {needs.map((need) => (
+            <li key={need}>{need}</li>
+          ))}
+        </ul>
+      )}
+      <label className="field">
+        <span>Your details</span>
+        <textarea
+          required
+          rows={3}
+          maxLength={1000}
+          value={details}
+          placeholder={needs.length ? `For example: ${needs.join(", ")}` : "What should the email say?"}
+          onChange={(event) => setDetails(event.target.value)}
+        />
+      </label>
+      <button className="btn btn-primary" type="submit" disabled={!details.trim()}>
+        Research and draft
+      </button>
+    </form>
+  );
+}
+
 function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
   const { state, actions } = useApp();
 
@@ -249,6 +291,8 @@ function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
     );
   }
   if (c.status === "done") return <p className="note">Marked as kept.</p>;
+  const needs = state.needs[c.id];
+  if (needs) return <NeedsDetails c={c} needs={needs} />;
 
   const again = draft?.status === "rejected";
   return (

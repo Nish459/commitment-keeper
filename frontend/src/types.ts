@@ -48,6 +48,7 @@ export interface AuditEvent {
 export interface SweepResult {
   prepared: Draft[];
   failed: { commitment_id: number; description: string; reason: string }[];
+  needs_you: number;
   skipped: number;
   stopped: string | null;
 }
