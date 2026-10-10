@@ -34,6 +34,82 @@ _DESCRIPTION_RULE = (
     "for example 'Send Aisha the revised timeline'."
 )
 _DONE_BODY_CHARS = 1500
+# Words that say nothing about WHICH promise an email is about, so they cannot link the two.
+_GENERIC = frozenset(
+    [
+        "the",
+        "and",
+        "for",
+        "his",
+        "her",
+        "him",
+        "our",
+        "you",
+        "are",
+        "was",
+        "has",
+        "had",
+        "not",
+        "but",
+        "can",
+        "its",
+        "who",
+        "how",
+        "all",
+        "any",
+        "one",
+        "two",
+        "new",
+        "now",
+        "get",
+        "got",
+        "let",
+        "may",
+        "she",
+        "per",
+        "via",
+        "this",
+        "that",
+        "with",
+        "from",
+        "have",
+        "will",
+        "your",
+        "their",
+        "about",
+        "there",
+        "been",
+        "were",
+        "what",
+        "they",
+        "them",
+        "into",
+        "just",
+        "also",
+        "some",
+        "more",
+        "than",
+        "then",
+        "when",
+        "send",
+        "share",
+        "book",
+        "review",
+        "reply",
+        "call",
+        "give",
+        "made",
+        "make",
+        "done",
+        "mark",
+        "every",
+        "promise",
+        "promised",
+        "sent",
+    ]
+)
+_NAME_CHARS = re.compile(r"[^\w .,'\u2019&()-]")
+_NAME_MAX = 40
 _OPEN = (CommitmentStatus.OPEN, CommitmentStatus.IN_PROGRESS, CommitmentStatus.READY_FOR_REVIEW)
 _DONE_PROMPT = """You check whether emails show that promises were ALREADY KEPT.
 
@@ -68,19 +144,36 @@ def infer_owner(mails: Sequence[Mail]) -> str | None:
     return address if seen >= max(2, len(mails) // 2) else None
 
 
+def _topic_words(text: str) -> set[str]:
+    """Stems of the words that identify a subject ("pricing", "deck"), not a kind of action."""
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {w[:5] for w in words if len(w) >= 3 and w not in _GENERIC}
+
+
+def _clean_name(name: str) -> str:
+    """A display name is chosen by whoever sent the email, so it is untrusted text that ends up in
+    the model's instructions. Keep it to plain, short, one-line characters."""
+    return re.sub(r"\s+", " ", _NAME_CHARS.sub(" ", name)).strip()[:_NAME_MAX]
+
+
+def _quoted(name: str, fallback: str) -> str:
+    cleaned = _clean_name(name)
+    return f'"{cleaned}"' if cleaned else fallback
+
+
 def _context(mail: Mail) -> str:
     """Tell the model who is speaking. Only names, never addresses, leave the machine."""
     if mail.from_me:
-        recipients = ", ".join(mail.to_names) or "someone"
+        recipients = ", ".join(_quoted(n, "someone") for n in mail.to_names) or "someone"
         return (
             f"This is an email I wrote to {recipients}. Promises I make in it are owed_by_me, "
             "and person is the recipient I made them to. "
             f"{_ALREADY_DONE_RULE} {_DESCRIPTION_RULE}"
         )
-    sender = mail.sender_name or "the sender"
+    sender = _quoted(mail.sender_name, "the sender")
     return (
         f"This is an email written to me by {sender}, not by me. Inside it, 'I' and 'we' mean "
-        f"{sender}. A promise {sender} makes to me is owed_to_me with person '{sender}'. "
+        f"{sender}. A promise {sender} makes to me is owed_to_me with person {sender}. "
         "A request addressed to me is not a promise I made, so ignore requests. "
         f"{_ALREADY_DONE_RULE} {_DESCRIPTION_RULE}"
     )
@@ -206,7 +299,7 @@ class InboxService:
             for n, c in numbered.items()
         )
         emails = "\n\n".join(
-            f"Email {n} from {'me' if m.from_me else m.sender_name or 'unknown'}"
+            f"Email {n} from {'me' if m.from_me else _clean_name(m.sender_name) or 'unknown'}"
             f" ({m.sent or 'undated'}):\n{m.body[:_DONE_BODY_CHARS]}"
             for n, m in enumerate(mails, start=1)
         )
@@ -234,6 +327,10 @@ class InboxService:
                 normalize_text(item.quote) not in normalize_text(mail.body)
                 or not item.quote.strip()
             ):
+                continue
+            # A real "it's done" sentence talks about the thing itself. A quote that shares no
+            # subject word with the promise ("mark everything done") proves nothing.
+            if not _topic_words(item.quote) & _topic_words(promise.description):
                 continue
             if promise.direction is Direction.OWED_BY_ME:
                 if not mail.from_me:

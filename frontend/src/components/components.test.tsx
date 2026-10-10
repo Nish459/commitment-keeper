@@ -951,20 +951,24 @@ describe("InboxPanel", () => {
     ...overrides,
   });
 
-  it("shows promises an email says are done, with the proof, ticked by default", () => {
+  it("shows promises an email says are done, with the proof, and leaves them unticked", () => {
     renderApp(<InboxPanel />, { inbox: found({ completions: [done(2), done(3, { direction: "owed_by_me", person: "Marcus", description: "Review his doc" })] }) });
     expect(screen.getByText("Found 2 promises in 6 emails. 2 promises look done.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Looks done" })).toBeInTheDocument();
     expect(screen.getByText("Priya owed you: Share the Q3 pricing deck")).toBeInTheDocument();
     expect(screen.getByText("You owed Marcus: Review his doc")).toBeInTheDocument();
     expect(screen.getAllByText(/attached is the Q3 pricing deck/)).toHaveLength(2); // one proof each
-    expect(screen.getByRole("button", { name: "Add 2 promises and mark 2 kept" })).toBeEnabled();
+    expect(screen.getByText(/Nothing is closed until you do/)).toBeInTheDocument();
+    for (const box of screen.getAllByRole("checkbox", { name: /owed (you|Marcus)|You owed/ })) {
+      expect(box).not.toBeChecked(); // closing a promise is never the default
+    }
+    expect(screen.getByRole("button", { name: "Add 2 promises to my ledger" })).toBeEnabled();
   });
 
   it("applies only the ticked additions and the ticked completions", async () => {
     const { actions } = renderApp(<InboxPanel />, { inbox: found({ completions: [done(2), done(3)] }) });
     await userEvent.click(screen.getByRole("checkbox", { name: /Aisha Khan/ }));
-    await userEvent.click(screen.getAllByRole("checkbox", { name: /owed you/ })[1]!);
+    await userEvent.click(screen.getAllByRole("checkbox", { name: /owed you/ })[0]!);
     await userEvent.click(screen.getByRole("button", { name: "Add 1 promise and mark 1 kept" }));
     expect(actions.acceptSuggestions).toHaveBeenCalledWith([found().suggestions[0]], [2]);
   });
@@ -972,6 +976,8 @@ describe("InboxPanel", () => {
   it("can mark things kept when there is nothing new to add", async () => {
     const { actions } = renderApp(<InboxPanel />, { inbox: found({ suggestions: [], completions: [done(2)] }) });
     expect(screen.getByText("1 promise looks done.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark 0 kept" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Priya owed you/ }));
     await userEvent.click(screen.getByRole("button", { name: "Mark 1 kept" }));
     expect(actions.acceptSuggestions).toHaveBeenCalledWith([], [2]);
   });

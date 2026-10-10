@@ -25,16 +25,17 @@ export function InboxPanel() {
   const adding = Boolean(state.busy["inbox-add"]);
   const files = useRef<HTMLInputElement>(null);
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
-  const [skippedDone, setSkippedDone] = useState<ReadonlySet<number>>(new Set());
+  // Closing a promise hides an obligation, so unlike new promises these start unticked.
+  const [tickedDone, setTickedDone] = useState<ReadonlySet<number>>(new Set());
 
   useEffect(() => {
     setSkipped(new Set());
-    setSkippedDone(new Set());
+    setTickedDone(new Set());
   }, [result]);
 
   const picked = result ? result.suggestions.filter((_, i) => !skipped.has(i)) : [];
   const pickedDone = result
-    ? result.completions.filter((c) => !skippedDone.has(c.commitment_id)).map((c) => c.commitment_id)
+    ? result.completions.filter((c) => tickedDone.has(c.commitment_id)).map((c) => c.commitment_id)
     : [];
   const flip = (set: ReadonlySet<number>, key: number) => {
     const next = new Set(set);
@@ -159,14 +160,15 @@ export function InboxPanel() {
           {looksDone > 0 && (
             <>
               <h3 className="inbox-subhead">Looks done</h3>
+              <p className="note">Tick the ones that really are done. Nothing is closed until you do.</p>
               <ul className="suggestions" aria-label="Promises your mail shows are done">
                 {result.completions.map((c) => (
                   <li key={c.commitment_id}>
                     <label className="suggestion">
                       <input
                         type="checkbox"
-                        checked={!skippedDone.has(c.commitment_id)}
-                        onChange={() => setSkippedDone(flip(skippedDone, c.commitment_id))}
+                        checked={tickedDone.has(c.commitment_id)}
+                        onChange={() => setTickedDone(flip(tickedDone, c.commitment_id))}
                       />
                       <span>
                         <span className="suggestion-title">
