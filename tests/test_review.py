@@ -22,6 +22,7 @@ from kept.domain.models import (
     CommitmentStatus,
     Direction,
     Draft,
+    DraftKind,
     DraftStatus,
 )
 from kept.services.review import DraftAlreadyReviewedError, DraftNotFoundError, ReviewService
@@ -210,3 +211,31 @@ async def test_the_attached_files_travel_with_the_email() -> None:
 async def test_approving_without_sending_never_needs_the_file() -> None:
     env = Env(FakeSender(), needs_attachment=True)
     assert (await env.service.approve(env.draft_id)).status is DraftStatus.APPROVED
+
+
+async def test_approving_a_reminder_does_not_mark_their_promise_kept() -> None:
+    env = Env()
+    chased = env.commitments.add(
+        Commitment(
+            direction=Direction.OWED_TO_ME,
+            person="Priya",
+            description="Share the deck",
+            status=CommitmentStatus.READY_FOR_REVIEW,
+            source_id="n",
+            source_quote="q2",
+        )
+    )
+    reminder = env.drafts.add(
+        Draft(commitment_id=chased.id or 0, subject="Nudge", body="B", kind=DraftKind.REMINDER)
+    )
+    approved = await env.service.approve(reminder.id or 0)
+    assert approved.status is DraftStatus.APPROVED
+    stored = env.commitments.get(chased.id or 0)
+    assert stored is not None and stored.status is CommitmentStatus.OPEN  # they still owe it
+
+
+async def test_approving_the_work_i_promised_still_keeps_my_promise() -> None:
+    env = Env()
+    await env.service.approve(env.draft_id)
+    stored = env.commitments.get(env.commitment_id)
+    assert stored is not None and stored.status is CommitmentStatus.DONE

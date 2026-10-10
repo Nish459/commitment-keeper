@@ -13,6 +13,7 @@ from kept.domain.models import (
     CommitmentStatus,
     Direction,
     Draft,
+    DraftKind,
     DraftStatus,
 )
 
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS drafts (
     created_at TEXT NOT NULL,
     sent_to TEXT,
     sent_at TEXT,
-    needs_attachment INTEGER NOT NULL DEFAULT 0
+    needs_attachment INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'deliverable'
 );
 CREATE TABLE IF NOT EXISTS attachments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +77,7 @@ _ADDED_COLUMNS = (
     ("drafts", "sent_to", "TEXT"),
     ("drafts", "sent_at", "TEXT"),
     ("drafts", "needs_attachment", "INTEGER NOT NULL DEFAULT 0"),
+    ("drafts", "kind", "TEXT NOT NULL DEFAULT 'deliverable'"),
 )
 
 
@@ -179,6 +182,7 @@ def _to_draft(row: sqlite3.Row) -> Draft:
         sent_to=row["sent_to"],
         sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
         needs_attachment=bool(row["needs_attachment"]),
+        kind=DraftKind(row["kind"]),
     )
 
 
@@ -189,7 +193,7 @@ class SqliteDraftRepository:
     def add(self, draft: Draft) -> Draft:
         cursor = self._db.execute(
             "INSERT INTO drafts (commitment_id, subject, body, sources, status, created_at,"
-            " needs_attachment) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            " needs_attachment, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 draft.commitment_id,
                 draft.subject,
@@ -198,6 +202,7 @@ class SqliteDraftRepository:
                 draft.status.value,
                 draft.created_at.isoformat(),
                 int(draft.needs_attachment),
+                draft.kind.value,
             ),
         )
         return draft.model_copy(update={"id": cursor.lastrowid})

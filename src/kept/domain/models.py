@@ -87,6 +87,11 @@ class DraftStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class DraftKind(StrEnum):
+    DELIVERABLE = "deliverable"  # the work I promised
+    REMINDER = "reminder"  # a nudge to someone who owes me
+
+
 class Draft(BaseModel):
     """A prepared deliverable awaiting the user's approval. Never sent automatically."""
 
@@ -101,6 +106,7 @@ class Draft(BaseModel):
     sent_at: datetime | None = None
     # The email says a file is attached; the user must add it before sending.
     needs_attachment: bool = False
+    kind: DraftKind = DraftKind.DELIVERABLE
 
 
 class Attachment(BaseModel):

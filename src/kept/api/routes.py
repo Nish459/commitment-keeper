@@ -171,6 +171,13 @@ async def prepare(commitment_id: int, c: Deps, body: PrepareIn | None = None) ->
         return await c.keeper.prepare(commitment_id, c.today(), body.details if body else "")
 
 
+@router.post("/commitments/{commitment_id}/remind")
+async def remind(commitment_id: int, c: Deps) -> Draft:
+    """Draft a friendly reminder to someone who promised me something."""
+    async with c.guarded("drafts"):
+        return await c.keeper.remind(commitment_id, c.today())
+
+
 @router.post("/sweep")
 async def sweep(c: Deps) -> SweepResult:
     """Draft everything that is overdue or due within three days and has no draft yet."""

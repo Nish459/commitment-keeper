@@ -13,6 +13,7 @@ from kept.domain.models import (
     CommitmentStatus,
     Direction,
     Draft,
+    DraftKind,
     DraftStatus,
     SearchResult,
     Tier,
@@ -53,6 +54,21 @@ Rules:
 - Do not describe what the file contains, do not invent details, dates or numbers, and do not ask
   {person} any questions about it. You do not know its contents.
 - Do not make new commitments or set new dates.
+- Do not write a closing, sign-off or my name; the signature is added automatically.
+
+Reply with JSON only: {{"subject": "...", "body": "...", "uses_search_results": false}}"""
+
+_REMINDER_PROMPT = """You write a short, friendly reminder email from me to {person}. {person}
+told me they would do this: {description}. {deadline}
+Their original words: "{quote}"
+Today is {today}.
+
+Rules:
+- Two to four short sentences. Start with "Hi {person},". Be warm and light. Never accuse, scold
+  or pressure.
+- Say what they told me they would do. If a deadline is given above, use it exactly as written.
+- Offer help in a few words, for example that I am happy to help if something is in the way.
+- Do not invent reasons, details, dates or new commitments. Ask at most one question.
 - Do not write a closing, sign-off or my name; the signature is added automatically.
 
 Reply with JSON only: {{"subject": "...", "body": "...", "uses_search_results": false}}"""
@@ -123,6 +139,14 @@ _SIGNOFF = re.compile(
     r"[,!.]?[ \t]*(?:\n[^\n]{0,60})?\s*$",
     re.IGNORECASE,
 )
+
+
+def _deadline_sentence(due: date | None, today: date) -> str:
+    """Worked out here, never by the model, so a reminder cannot get the date wrong."""
+    if due is None:
+        return "They gave no deadline."
+    verb = "was due" if due < today else "is due"
+    return f"It {verb} {due:%A %-d %B}."
 
 
 def asks_questions(body: str) -> bool:
@@ -259,6 +283,45 @@ class KeeperService:
                 body=body,
                 sources=sources,
                 needs_attachment=plan.kind == "send_file",
+            )
+        )
+        self._commitments.set_status(commitment_id, CommitmentStatus.READY_FOR_REVIEW)
+        return draft
+
+    async def remind(self, commitment_id: int, today: date) -> Draft:
+        """Draft a friendly nudge to someone who promised me something. No research, never sent."""
+        commitment = self._commitments.get(commitment_id)
+        if commitment is None:
+            raise CommitmentNotFoundError(f"Commitment {commitment_id} not found")
+        if commitment.direction is not Direction.OWED_TO_ME:
+            raise NotPreparableError("Only promises made to me can be chased")
+        if commitment.status in (CommitmentStatus.DONE, CommitmentStatus.DROPPED):
+            raise NotPreparableError("That promise is already closed")
+        existing = self._drafts.for_commitment(commitment_id)
+        if existing is not None and existing.status is DraftStatus.PENDING:
+            return existing
+
+        content = await self._complete(
+            [
+                {
+                    "role": "system",
+                    "content": _REMINDER_PROMPT.format(
+                        person=commitment.person,
+                        description=commitment.description,
+                        deadline=_deadline_sentence(commitment.due, today),
+                        quote=commitment.source_quote,
+                        today=today.isoformat(),
+                    ),
+                },
+                {"role": "user", "content": "Write the reminder."},
+            ]
+        )
+        draft = self._drafts.add(
+            Draft(
+                commitment_id=commitment_id,
+                subject=content.subject.strip(),
+                body=_sign(content.body, self._signature().strip()),
+                kind=DraftKind.REMINDER,
             )
         )
         self._commitments.set_status(commitment_id, CommitmentStatus.READY_FOR_REVIEW)

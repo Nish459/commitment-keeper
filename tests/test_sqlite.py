@@ -18,6 +18,7 @@ from kept.domain.models import (
     CommitmentStatus,
     Direction,
     Draft,
+    DraftKind,
     DraftStatus,
 )
 
@@ -186,5 +187,18 @@ def test_needs_attachment_is_stored_and_legacy_databases_default_to_false(
     legacy.commit()
     legacy.close()
     old = Database(tmp_path / "old.db")
-    assert SqliteDraftRepository(old).get(1).needs_attachment is False  # type: ignore[union-attr]
+    legacy_draft = SqliteDraftRepository(old).get(1)
+    assert legacy_draft is not None
+    assert legacy_draft.needs_attachment is False
+    assert legacy_draft.kind is DraftKind.DELIVERABLE  # drafts from before reminders existed
     old.close()
+
+
+def test_a_reminder_draft_keeps_its_kind(db: Database) -> None:
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    commitment = commitments.add(_commitment("Zoe"))
+    saved = drafts.add(
+        Draft(commitment_id=commitment.id or 0, subject="s", body="b", kind=DraftKind.REMINDER)
+    )
+    assert drafts.get(saved.id or 0).kind is DraftKind.REMINDER  # type: ignore[union-attr]

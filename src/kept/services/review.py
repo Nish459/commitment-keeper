@@ -8,7 +8,7 @@ from kept.domain.errors import (
     EmailNotConfiguredError,
     RecipientNotAllowedError,
 )
-from kept.domain.models import CommitmentStatus, Draft, DraftStatus, utcnow
+from kept.domain.models import CommitmentStatus, Draft, DraftKind, DraftStatus, utcnow
 from kept.domain.ports import (
     AttachmentRepository,
     CommitmentRepository,
@@ -56,7 +56,11 @@ class ReviewService:
             await self._send(draft, to)
             draft = self._drafts.get(draft_id) or draft
         self._drafts.set_status(draft_id, DraftStatus.APPROVED)
-        self._commitments.set_status(draft.commitment_id, CommitmentStatus.DONE)
+        # Delivering my work keeps my promise. A reminder does not: they still owe me.
+        kept = draft.kind is DraftKind.DELIVERABLE
+        self._commitments.set_status(
+            draft.commitment_id, CommitmentStatus.DONE if kept else CommitmentStatus.OPEN
+        )
         return draft.model_copy(update={"status": DraftStatus.APPROVED})
 
     def edit(self, draft_id: int, subject: str, body: str) -> Draft:

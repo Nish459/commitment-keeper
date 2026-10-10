@@ -7,6 +7,8 @@ from kept.adapters.sqlite import Database
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.container import build_container
+from kept.domain.models import Direction
+from kept.services.extraction import ExtractedCommitment, ExtractionResult
 from kept.services.keeper import ResearchPlan
 from tests.fakes import NOTE, FakeSearch, FakeSender, ScriptedLLM
 
@@ -241,3 +243,46 @@ async def test_a_promise_kept_cannot_do_alone_asks_for_details_then_proceeds(
     drafted = await client.post(f"/api/commitments/{cid}/prepare", json={"details": "Austin"})
     assert drafted.status_code == 200
     assert drafted.json()["status"] == "pending"
+
+
+async def test_a_reminder_can_be_drafted_for_a_promise_made_to_me_and_stays_open_when_approved(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, _ = env
+    llm.responses[ExtractionResult] = ExtractionResult(
+        commitments=[
+            ExtractedCommitment(
+                direction=Direction.OWED_TO_ME,
+                person="Priya",
+                description="share the deck",
+                due_phrase="by Wednesday",
+                source_quote="Priya will share the deck by Wednesday",
+            )
+        ]
+    )
+    cid = (
+        await client.post(
+            "/api/notes",
+            json={"source_id": "n1", "text": "Priya will share the deck by Wednesday."},
+        )
+    ).json()[0]["id"]
+
+    assert (
+        await client.post(f"/api/commitments/{cid}/prepare")
+    ).status_code == 409  # not mine to do
+    draft = (await client.post(f"/api/commitments/{cid}/remind")).json()
+    assert draft["kind"] == "reminder" and draft["status"] == "pending"
+
+    approved = await client.post(f"/api/drafts/{draft['id']}/approve")
+    assert approved.json()["kind"] == "reminder"
+    still = (await client.get("/api/commitments", params={"status": "open"})).json()
+    assert [c["id"] for c in still] == [cid]
+
+
+async def test_chasing_a_promise_i_made_is_refused(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, _, _ = env
+    cid = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()[0]["id"]
+    assert (await client.post(f"/api/commitments/{cid}/remind")).status_code == 409
+    assert (await client.post("/api/commitments/99/remind")).status_code == 404

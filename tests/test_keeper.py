@@ -11,6 +11,7 @@ from kept.domain.models import (
     CommitmentStatus,
     Direction,
     Draft,
+    DraftKind,
     SearchResult,
     Tier,
 )
@@ -584,3 +585,91 @@ async def test_without_anything_owed_there_is_no_postscript() -> None:
         llm, FakeSearch([ACME])
     )  # owed, but no due date
     assert "P.S." not in (await service.prepare(current, TODAY)).body
+
+
+def _chase_setup(
+    llm: FakeLLM, due: date | None, *, status: CommitmentStatus = CommitmentStatus.OPEN
+) -> tuple[KeeperService, SqliteCommitmentRepository, SqliteDraftRepository, int]:
+    db = Database(":memory:")
+    commitments = SqliteCommitmentRepository(db)
+    drafts = SqliteDraftRepository(db)
+    saved = commitments.add(
+        Commitment(
+            direction=Direction.OWED_TO_ME,
+            person="Priya",
+            description="Share the Q3 pricing deck",
+            due=due,
+            status=status,
+            source_id="n1",
+            source_quote="Priya said she will share the Q3 pricing deck by Wednesday.",
+        )
+    )
+    search = FakeSearch([ACME])
+    service = KeeperService(llm, search, commitments, drafts, signature=lambda: "Ada")
+    return service, commitments, drafts, saved.id or 0
+
+
+async def test_a_reminder_is_a_signed_unsearched_nudge_marked_as_a_reminder() -> None:
+    llm = FakeLLM(
+        PLAN,
+        DraftContent(
+            subject="Quick nudge", body="Hi Priya,\n\nChecking in.", uses_search_results=False
+        ),
+    )
+    service, commitments, _, cid = _chase_setup(llm, date(2026, 10, 5))
+    draft = await service.remind(cid, TODAY)
+    assert draft.kind is DraftKind.REMINDER
+    assert draft.subject == "Quick nudge"
+    assert draft.body.endswith("Best,\nAda") and draft.sources == []
+    stored = commitments.get(cid)
+    assert stored is not None and stored.status is CommitmentStatus.READY_FOR_REVIEW
+    assert llm.tiers == [Tier.SUPER]  # one writing call: no plan, no search
+
+
+async def test_the_deadline_in_a_reminder_is_worked_out_by_code_not_the_model() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Hi Priya.", uses_search_results=False))
+    service, _, _, cid = _chase_setup(llm, date(2026, 10, 5))  # Monday, two days before TODAY
+    await service.remind(cid, TODAY)
+    assert "It was due Monday 5 October." in llm.last_system_prompt
+    assert 'Their original words: "Priya said she will share' in llm.last_system_prompt
+
+    later = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
+    service, _, _, cid = _chase_setup(later, date(2026, 10, 9))
+    await service.remind(cid, TODAY)
+    assert "It is due Friday 9 October." in later.last_system_prompt
+
+    none = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
+    service, _, _, cid = _chase_setup(none, None)
+    await service.remind(cid, TODAY)
+    assert "They gave no deadline." in none.last_system_prompt
+
+
+async def test_the_reminder_prompt_is_kind_and_forbids_inventing_things() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
+    service, _, _, cid = _chase_setup(llm, date(2026, 10, 5))
+    await service.remind(cid, TODAY)
+    prompt = " ".join(llm.last_system_prompt.split())
+    assert "Never accuse, scold or pressure" in prompt
+    assert "Do not invent reasons, details, dates or new commitments" in prompt
+    assert "the signature is added automatically" in prompt
+
+
+async def test_only_open_promises_made_to_me_can_be_chased() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="b", uses_search_results=False))
+    service, _, _, mine = _setup(llm, FakeSearch())  # a promise I made
+    with pytest.raises(NotPreparableError, match="made to me"):
+        await service.remind(mine, TODAY)
+    with pytest.raises(CommitmentNotFoundError):
+        await service.remind(999, TODAY)
+
+    closed, _, _, done = _chase_setup(llm, None, status=CommitmentStatus.DONE)
+    with pytest.raises(NotPreparableError, match="already closed"):
+        await closed.remind(done, TODAY)
+
+
+async def test_chasing_twice_while_a_reminder_is_pending_returns_the_same_draft() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
+    service, _, _, cid = _chase_setup(llm, None)
+    first = await service.remind(cid, TODAY)
+    second = await service.remind(cid, TODAY)
+    assert first.id == second.id and llm.draft_calls == 1
