@@ -7,6 +7,7 @@ from kept.adapters.sqlite import Database
 from kept.api.app import create_app
 from kept.config import Settings
 from kept.container import build_container
+from kept.services.keeper import ResearchPlan
 from tests.fakes import NOTE, FakeSearch, FakeSender, ScriptedLLM
 
 
@@ -222,3 +223,21 @@ async def test_week_check_returns_a_validated_review(
     assert review["concerns"][0]["commitment_ids"] == [1]  # the invented id 999 was dropped
     assert review["suggested_order"] == [{"commitment_id": 1, "reason": "Due first"}]
     assert review["model_used"] == "Nemotron 3 Ultra"
+
+
+async def test_a_promise_kept_cannot_do_alone_asks_for_details_then_proceeds(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, _ = env
+    llm.responses[ResearchPlan] = ResearchPlan(kind="other", queries=["venues"], needs=["city"])
+    cid = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()[0]["id"]
+
+    needed = await client.post(f"/api/commitments/{cid}/prepare")
+    assert needed.status_code == 409
+    assert needed.json()["needs"] == ["city"]
+    assert "details" in needed.json()["detail"]
+    assert (await client.get("/api/drafts")).json() == []
+
+    drafted = await client.post(f"/api/commitments/{cid}/prepare", json={"details": "Austin"})
+    assert drafted.status_code == 200
+    assert drafted.json()["status"] == "pending"

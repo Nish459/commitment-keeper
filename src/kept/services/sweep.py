@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from kept.domain.errors import DemoLimitError
 from kept.domain.models import Commitment, CommitmentStatus, Direction, Draft, DraftStatus
 from kept.domain.ports import CommitmentRepository, DraftRepository
+from kept.services.keeper import NeedsDetailsError
 
 logger = logging.getLogger("kept.sweep")
 
@@ -24,6 +25,7 @@ class SweepFailure(BaseModel):
 class SweepResult(BaseModel):
     prepared: list[Draft] = []
     failed: list[SweepFailure] = []
+    needs_you: int = 0  # promises Kept cannot do alone: they wait for the user's details
     skipped: int = 0  # eligible but beyond this run's cap; the next run picks them up
     stopped: str | None = None
 
@@ -76,6 +78,8 @@ class SweepService:
                     len(candidates[: self._max]) - len(result.prepared) - len(result.failed)
                 )
                 break
+            except NeedsDetailsError:
+                result.needs_you += 1
             except Exception as exc:
                 logger.warning("sweep failed for %s: %s", commitment.id, exc)
                 result.failed.append(

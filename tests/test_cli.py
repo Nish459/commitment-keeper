@@ -49,3 +49,7 @@ def test_the_command_runs_end_to_end_against_an_empty_database(
 def test_a_subcommand_is_required() -> None:
     with pytest.raises(SystemExit):
         main([])
+
+
+def test_the_summary_says_how_many_promises_wait_for_the_users_details() -> None:
+    assert "2 need details from you first" in format_result(SweepResult(needs_you=2))

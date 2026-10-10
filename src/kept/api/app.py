@@ -24,7 +24,12 @@ from kept.domain.errors import (
     RecipientNotAllowedError,
     SearchError,
 )
-from kept.services.keeper import CommitmentNotFoundError, NotPreparableError, UngroundedDraftError
+from kept.services.keeper import (
+    CommitmentNotFoundError,
+    NeedsDetailsError,
+    NotPreparableError,
+    UngroundedDraftError,
+)
 from kept.services.review import DraftAlreadyReviewedError, DraftNotFoundError
 
 logger = logging.getLogger("kept")
@@ -33,6 +38,7 @@ _STATUS_BY_ERROR: dict[type[Exception], int] = {
     CommitmentNotFoundError: 404,
     DraftNotFoundError: 404,
     NotPreparableError: 409,
+    NeedsDetailsError: 409,
     DraftAlreadyReviewedError: 409,
     SearchError: 502,
     UngroundedDraftError: 502,
@@ -138,7 +144,10 @@ def create_app(
         status = next(code for t, code in _STATUS_BY_ERROR.items() if isinstance(exc, t))
         if status >= 500:
             logger.warning("upstream failure: %s", exc)
-        return JSONResponse({"detail": str(exc)}, status_code=status)
+        payload: dict[str, object] = {"detail": str(exc)}
+        if isinstance(exc, NeedsDetailsError):
+            payload["needs"] = exc.needs
+        return JSONResponse(payload, status_code=status)
 
     for error_type in _STATUS_BY_ERROR:
         app.add_exception_handler(error_type, _handle)

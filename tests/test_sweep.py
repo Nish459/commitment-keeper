@@ -5,6 +5,7 @@ import pytest
 from kept.adapters.sqlite import Database, SqliteCommitmentRepository, SqliteDraftRepository
 from kept.domain.errors import DemoLimitError
 from kept.domain.models import Commitment, CommitmentStatus, Direction, Draft, DraftStatus
+from kept.services.keeper import NeedsDetailsError
 from kept.services.sweep import SweepService
 
 TODAY = date(2026, 10, 6)  # a Tuesday
@@ -18,11 +19,14 @@ class Env:
         self.prepared: list[int] = []
         self.fail_ids = fail_ids or set()
         self.limit_after: int | None = None
+        self.needs_details: set[int] = set()
         self.service = SweepService(
             self.commitments, self.drafts, self._prepare, horizon_days=3, max_per_run=max_per_run
         )
 
     async def _prepare(self, commitment_id: int, today: date) -> Draft:
+        if commitment_id in self.needs_details:
+            raise NeedsDetailsError(["city"])
         if commitment_id in self.fail_ids:
             raise RuntimeError("search is down")
         if self.limit_after is not None and len(self.prepared) >= self.limit_after:
@@ -134,3 +138,16 @@ def test_horizon_is_configurable(horizon: int) -> None:
     env.add("2026-10-06")
     env.add("2026-10-07")
     assert len(env.service.eligible(TODAY)) == horizon + 1
+
+
+async def test_a_promise_that_needs_the_users_details_is_counted_not_reported_as_a_failure() -> (
+    None
+):
+    env = Env()
+    waiting = env.add("2026-10-06")
+    good = env.add("2026-10-07")
+    env.needs_details = {waiting}
+
+    result = await env.service.run(TODAY)
+    assert [d.commitment_id for d in result.prepared] == [good]
+    assert (result.needs_you, result.failed) == (1, [])

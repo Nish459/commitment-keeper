@@ -18,6 +18,8 @@ def format_result(result: SweepResult) -> str:
         lines += [
             f"  promise {f.commitment_id} ({f.description}): {f.reason}" for f in result.failed
         ]
+    if result.needs_you:
+        lines.append(f"{result.needs_you} need details from you first (open them in the app).")
     if result.skipped:
         lines.append(f"{result.skipped} more are due soon and will be picked up on the next run.")
     if result.stopped:

@@ -159,11 +159,16 @@ def calendar(commitment_id: int, c: Deps) -> Response:
     )
 
 
+class PrepareIn(BaseModel):
+    # Facts only the user has ("Austin, 12 people"), for promises Kept cannot do alone.
+    details: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] = ""
+
+
 @router.post("/commitments/{commitment_id}/prepare")
-async def prepare(commitment_id: int, c: Deps) -> Draft:
+async def prepare(commitment_id: int, c: Deps, body: PrepareIn | None = None) -> Draft:
     """Research and draft the deliverable for a promise I made."""
     async with c.guarded("drafts"):
-        return await c.keeper.prepare(commitment_id, c.today())
+        return await c.keeper.prepare(commitment_id, c.today(), body.details if body else "")
 
 
 @router.post("/sweep")

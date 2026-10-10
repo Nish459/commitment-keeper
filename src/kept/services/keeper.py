@@ -24,7 +24,8 @@ _SNIPPET_LIMIT = 1200
 
 _PLAN_PROMPT = """You help me keep a promise I made. First decide what kind of promise it is, then
 what web research it needs. Reply with JSON only:
-{"kind": "research" | "send_file" | "other", "queries": ["<search query>", ...]}
+{"kind": "research" | "send_file" | "other", "queries": ["<search query>", ...],
+"needs": ["<detail>", ...]}
 
 kind:
 - "send_file": I promised to send, share or forward something I already have or own: a document,
@@ -35,6 +36,9 @@ kind:
 
 queries: at most {max_queries} focused queries for "research" and "other" promises that involve
 finding, comparing, choosing or booking something. Empty for "send_file".
+needs: only for "other": up to 4 short noun phrases naming what only I can supply before this can
+be done or written up (for example "city", "headcount", "dates", "what you want to say"). Empty
+for the other kinds.
 Use only details that appear in the promise or my original words. Never add a location, date,
 name, budget or headcount of your own. If a key detail is missing, search generically."""
 
@@ -64,15 +68,19 @@ Rules:
 - Do not say or imply that {person} asked for, requested or is waiting for anything, unless that
   is in the promise or my original words.
 - Start with "Hi {person}," and say plainly what this email is about.
-- If the promise needs details you do not have (location, budget, headcount, dates), ask for each
-  one in a short bulleted list. Never send a bare follow-up with no content or questions.
+- Deliver the work. Lead with what you found and present it clearly. Do not ask {person} what
+  they want, what to focus on or how to format it: {person} is waiting for the result, not for
+  questions.
+- If the search results do not cover something I promised, say plainly what this email does not
+  cover yet instead of asking.
+- Never send a bare follow-up with no content.
 - Keep it under 200 words, concise and professional.
 - Do not write a closing, sign-off or my name; the signature is added automatically.
 
 Reply with JSON only:
 {{"subject": "...", "body": "...", "uses_search_results": true | false}}
 Set "uses_search_results" to true only if the email states facts taken from the results. An email
-that just asks questions or restates the promise uses none, and then needs no citations."""
+that just restates the promise uses none, and then needs no citations."""
 
 _NO_EVIDENCE_RULE = """
 You have NO search results. Do not state or imply any progress, findings, options, availability,
@@ -90,13 +98,36 @@ _REPAIR_PROMPT = (
     "with that result's number in square brackets, like [2]. Reply with the same JSON format."
 )
 
+_DELIVER_PROMPT = (
+    "Your draft asks the recipient questions instead of delivering. Rewrite it so it delivers the "
+    "promised content using the search results, with no questions to the recipient. If something "
+    "is not covered by the results, say plainly what the email does not cover. Keep the same "
+    "citation rule. Reply with the same JSON format."
+)
+
 _CITATION = re.compile(r"\[(\d+)\]")
+# Phrases that hand the work back to the recipient. A closing courtesy such as "let me know if
+# you have questions" is fine and deliberately not matched.
+_ASKING = re.compile(
+    r"\b(?:could|can|would) you (?:please )?(?:clarify|confirm|specify|provide|share|tell me|"
+    r"let me know (?:what|which|how|whether))"
+    r"|\bplease (?:clarify|confirm|specify)\b"
+    r"|\bI need (?:the following|to know|you to|more|some|your)\b",
+    re.IGNORECASE,
+)
 # A trailing sign-off the model wrote anyway ("Best regards,", optionally followed by a name line).
 _SIGNOFF = re.compile(
     r"(?:\s*\n)+\s*(?:best(?: regards)?|kind regards|regards|thanks|thank you|sincerely|cheers)"
     r"[,!.]?[ \t]*(?:\n[^\n]{0,60})?\s*$",
     re.IGNORECASE,
 )
+
+
+def asks_questions(body: str) -> bool:
+    """Does the draft hand the work back to the recipient: clarification requests, or a run of
+    questions? One question mark ("Does Friday work?") is ordinary politeness."""
+    text = body.split("\n\nSources:", 1)[0]
+    return bool(_ASKING.search(text)) or text.count("?") >= 2
 
 
 def _postscript(reminders: list[Commitment], today: date) -> str:
@@ -129,6 +160,14 @@ class NotPreparableError(KeeperError):
     pass
 
 
+class NeedsDetailsError(KeeperError):
+    """Kept cannot do this one alone: it needs facts only the user has."""
+
+    def __init__(self, needs: list[str]) -> None:
+        super().__init__("This one needs a few details from you first.")
+        self.needs = needs
+
+
 class UngroundedDraftError(KeeperError):
     """The model would not ground its draft in the search results."""
 
@@ -136,6 +175,7 @@ class UngroundedDraftError(KeeperError):
 class ResearchPlan(BaseModel):
     kind: Literal["research", "send_file", "other"] = "research"
     queries: list[str] = Field(default_factory=list)
+    needs: list[str] = Field(default_factory=list)
 
 
 class DraftContent(BaseModel):
@@ -176,7 +216,12 @@ class KeeperService:
         self._signature = signature
         self._people = people
 
-    async def prepare(self, commitment_id: int, today: date) -> Draft:
+    async def prepare(self, commitment_id: int, today: date, details: str = "") -> Draft:
+        """Research and draft the work behind a promise I made.
+
+        Promises Kept cannot do alone ("book the venue") come back as NeedsDetailsError until the
+        user supplies `details`; then they are researched and written up like any other.
+        """
         commitment = self._commitments.get(commitment_id)
         if commitment is None:
             raise CommitmentNotFoundError(f"Commitment {commitment_id} not found")
@@ -186,9 +231,13 @@ class KeeperService:
         if existing is not None and existing.status is DraftStatus.PENDING:
             return existing
 
-        plan = await self._plan(commitment)
+        details = details.strip()
+        plan = await self._plan(commitment, details)
+        if plan.kind == "other" and not details:
+            needs = [n.strip() for n in plan.needs if n.strip()][:4]
+            raise NeedsDetailsError(needs)
         evidence = await self._search_for(plan)
-        content = await self._write(commitment, evidence, today, plan.kind)
+        content = await self._write(commitment, evidence, today, plan.kind, details)
 
         numbered = {i: r.url for i, r in enumerate(evidence, start=1)}
         cited = sorted({int(n) for n in _CITATION.findall(content.body)} & numbered.keys())
@@ -213,7 +262,10 @@ class KeeperService:
         self._commitments.set_status(commitment_id, CommitmentStatus.READY_FOR_REVIEW)
         return draft
 
-    async def _plan(self, commitment: Commitment) -> ResearchPlan:
+    async def _plan(self, commitment: Commitment, details: str) -> ResearchPlan:
+        asked = f"{commitment.description} (for {commitment.person})"
+        if details:
+            asked += f"\nMy details: {details}"
         return await self._llm.complete_json(
             Tier.SUPER,
             [
@@ -221,7 +273,7 @@ class KeeperService:
                     "role": "system",
                     "content": _PLAN_PROMPT.replace("{max_queries}", str(self._max_queries)),
                 },
-                {"role": "user", "content": f"{commitment.description} (for {commitment.person})"},
+                {"role": "user", "content": asked},
             ],
             ResearchPlan,
             temperature=0.0,
@@ -244,7 +296,12 @@ class KeeperService:
         return list({r.url: r for r in results}.values())
 
     async def _write(
-        self, commitment: Commitment, evidence: list[SearchResult], today: date, kind: str
+        self,
+        commitment: Commitment,
+        evidence: list[SearchResult],
+        today: date,
+        kind: str,
+        details: str = "",
     ) -> DraftContent:
         if kind == "send_file":
             return await self._complete(
@@ -276,11 +333,25 @@ class KeeperService:
                 "role": "user",
                 "content": f"Promise: {commitment.description}\n"
                 f'Original words: "{commitment.source_quote}"\n\n'
+                + (
+                    f"My details (facts from me: use them exactly and do not ask about them):"
+                    f" {details}\n\n"
+                    if details
+                    else ""
+                )
                 + (f"{history}\n\n" if history else "")
                 + f"Search results:\n{_format_evidence(evidence)}",
             },
         ]
         content = await self._complete(messages)
+        if evidence and asks_questions(content.body):
+            content = await self._complete(
+                [
+                    *messages,
+                    {"role": "assistant", "content": content.model_dump_json()},
+                    {"role": "user", "content": _DELIVER_PROMPT},
+                ]
+            )
         if evidence and content.uses_search_results and not _CITATION.search(content.body):
             repair = [
                 *messages,

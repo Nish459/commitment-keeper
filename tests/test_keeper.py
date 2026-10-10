@@ -18,9 +18,11 @@ from kept.services.keeper import (
     CommitmentNotFoundError,
     DraftContent,
     KeeperService,
+    NeedsDetailsError,
     NotPreparableError,
     ResearchPlan,
     UngroundedDraftError,
+    asks_questions,
 )
 from kept.services.people import PeopleService
 
@@ -341,7 +343,109 @@ async def test_research_and_other_promises_do_not_need_an_attachment() -> None:
             DraftContent(subject="s", body="Hello.", uses_search_results=False),
         )
         service, _, _, cid = _setup(llm, FakeSearch())
-        assert (await service.prepare(cid, TODAY)).needs_attachment is False
+        draft = await service.prepare(cid, TODAY, details="Austin, 12 people")
+        assert draft.needs_attachment is False
+
+
+async def test_a_promise_kept_cannot_do_alone_asks_the_user_not_the_other_person() -> None:
+    plan = ResearchPlan(kind="other", queries=[], needs=["city", " headcount ", "", "dates"])
+    llm = FakeLLM(plan, DraftContent(subject="s", body="never used"))
+    search = FakeSearch([ACME])
+    service, commitments, drafts, cid = _setup(llm, search)
+    with pytest.raises(NeedsDetailsError) as caught:
+        await service.prepare(cid, TODAY)
+    assert caught.value.needs == ["city", "headcount", "dates"]
+    assert llm.draft_calls == 0 and search.queries == []
+    assert drafts.for_commitment(cid) is None
+    assert commitments.get(cid).status is CommitmentStatus.OPEN  # type: ignore[union-attr]
+
+
+async def test_with_the_users_details_that_promise_is_researched_and_written_up() -> None:
+    plan = ResearchPlan(kind="other", queries=["venues in Austin"])
+    llm = FakeLLM(plan, DraftContent(subject="Venues", body="Option A [1]."))
+    search = FakeSearch([ACME])
+    service, _, _, cid = _setup(llm, search)
+    draft = await service.prepare(cid, TODAY, details="Austin, 12 people, Nov 4")
+    assert search.queries == ["venues in Austin"]
+    assert "Austin, 12 people, Nov 4" in llm.last_user_prompt
+    assert "do not ask about them" in llm.last_user_prompt
+    assert draft.sources == ["https://acme.test"]
+
+
+async def test_the_planner_is_asked_what_only_the_user_can_supply() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert '"needs"' in llm.plan_prompt and "only I can supply" in llm.plan_prompt
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "To complete this, could you please clarify which aspects to focus on?",
+        "Can you confirm the budget?",
+        "Please specify the format you want.",
+        "I need the following details: city, dates.",
+        "Which cities? What dates?",
+    ],
+)
+def test_drafts_that_hand_the_work_back_are_detected(body: str) -> None:
+    assert asks_questions(body)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Tavily is hosted only [1]. Exa is semantic-first [2]. Let me know if you have questions.",
+        "Here is the comparison. Does Friday work for a call?",
+        "Please let me know if anything is unclear.",
+        "Body.\n\nSources:\n[1] https://a.test/page?x=1&y=2?z",
+    ],
+)
+def test_ordinary_courtesy_and_urls_are_not_mistaken_for_questions(body: str) -> None:
+    assert not asks_questions(body)
+
+
+async def test_a_research_draft_that_asks_questions_gets_one_firm_retry() -> None:
+    asking = DraftContent(subject="s", body="Could you please clarify what to compare? [1]")
+    delivered = DraftContent(subject="s", body="Acme sells widgets [1].")
+    llm = FakeLLM(PLAN, asking, delivered)
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    draft = await service.prepare(cid, TODAY)
+    assert llm.draft_calls == 2
+    assert "Acme sells widgets" in draft.body and "clarify" not in draft.body
+
+
+async def test_a_second_attempt_that_still_asks_is_kept_rather_than_looping() -> None:
+    asking = DraftContent(subject="s", body="Could you please clarify? [1]")
+    llm = FakeLLM(PLAN, asking)
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert llm.draft_calls == 2
+
+
+async def test_a_delivered_draft_is_not_retried_and_no_results_means_no_retry() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    assert llm.draft_calls == 1
+
+    no_results = FakeLLM(
+        ResearchPlan(queries=[]),
+        DraftContent(subject="s", body="Could you please clarify?", uses_search_results=False),
+    )
+    service, _, _, cid = _setup(no_results, FakeSearch())
+    await service.prepare(cid, TODAY)
+    assert no_results.draft_calls == 1
+
+
+async def test_the_draft_prompt_says_deliver_instead_of_ask() -> None:
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    await service.prepare(cid, TODAY)
+    prompt = " ".join(llm.last_system_prompt.split())
+    assert "Deliver the work" in prompt and "Do not ask Priya what they want" in prompt
+    assert "ask for each one" not in prompt
 
 
 async def test_the_planner_is_taught_the_three_kinds_with_examples() -> None:
