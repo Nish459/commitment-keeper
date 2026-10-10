@@ -104,8 +104,18 @@ export interface Suggestion {
   source_quote: string;
 }
 
+export interface Completion {
+  commitment_id: number;
+  direction: Direction;
+  person: string;
+  description: string;
+  source_id: string;
+  source_quote: string;
+}
+
 export interface ScanResult {
   emails_read: number;
   emails_skipped: number;
   suggestions: Suggestion[];
+  completions: Completion[];
 }

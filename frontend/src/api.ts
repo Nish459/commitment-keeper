@@ -80,6 +80,8 @@ export const api = {
   },
   acceptSuggestions: (suggestions: Suggestion[]) =>
     post<Commitment[]>("/api/inbox/accept", { suggestions }),
+  markKept: (commitmentIds: number[]) =>
+    post<Commitment[]>("/api/inbox/complete", { commitment_ids: commitmentIds }),
   remind: (commitmentId: number) => post<Draft>(`/api/commitments/${commitmentId}/remind`),
   prepare: (commitmentId: number, details?: string) =>
     post<Draft>(`/api/commitments/${commitmentId}/prepare`, details ? { details } : undefined),

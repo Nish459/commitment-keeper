@@ -193,7 +193,7 @@ export interface Actions {
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
   scanInbox: (input: File[] | "sample") => Promise<void>;
-  acceptSuggestions: (suggestions: Suggestion[]) => Promise<void>;
+  acceptSuggestions: (suggestions: Suggestion[], keptIds?: number[]) => Promise<void>;
   dismissInbox: () => void;
   loadAttachments: (draftId: number) => Promise<void>;
   addAttachments: (draftId: number, files: File[]) => Promise<void>;
@@ -386,15 +386,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }),
 
-      acceptSuggestions: (suggestions) =>
+      acceptSuggestions: (suggestions, keptIds = []) =>
         withBusy("inbox-add", async () => {
           try {
-            const added = await api.acceptSuggestions(suggestions);
+            const added = suggestions.length ? await api.acceptSuggestions(suggestions) : [];
+            const kept = keptIds.length ? await api.markKept(keptIds) : [];
             dispatch({ type: "inbox", result: null });
             await refresh();
             const [first] = added;
             if (first) dispatch({ type: "select", id: first.id });
-            toast(added.length === 1 ? "Added 1 promise." : `Added ${added.length} promises.`);
+            toast(
+              [
+                added.length ? `Added ${plural(added.length, "promise")}.` : "",
+                kept.length ? `Marked ${kept.length} kept.` : "",
+              ]
+                .filter(Boolean)
+                .join(" ") || "Nothing new to add.",
+            );
           } catch (error) {
             toast(error instanceof Error ? error.message : "Something went wrong.", true);
           }

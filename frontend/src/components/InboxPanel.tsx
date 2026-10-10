@@ -2,12 +2,21 @@ import { useEffect, useRef, useState } from "react";
 
 import { dueLabel, plural } from "../format";
 import { useApp } from "../state";
-import type { Suggestion } from "../types";
+import type { Completion, Suggestion } from "../types";
 
 const FILE_TYPES = ".eml,.mbox,message/rfc822,application/mbox";
 
 const who = (s: Suggestion) =>
   s.direction === "owed_by_me" ? `You promised ${s.person}` : `${s.person} promised you`;
+
+const owes = (c: Completion) =>
+  c.direction === "owed_by_me" ? `You owed ${c.person}` : `${c.person} owed you`;
+
+function addLabel(adds: number, kept: number, hasSuggestions: boolean): string {
+  if (adds > 0 && kept > 0) return `Add ${plural(adds, "promise")} and mark ${kept} kept`;
+  if (kept > 0) return `Mark ${kept} kept`;
+  return hasSuggestions ? `Add ${plural(adds, "promise")} to my ledger` : "Mark 0 kept";
+}
 
 export function InboxPanel() {
   const { state, actions, today } = useApp();
@@ -16,16 +25,37 @@ export function InboxPanel() {
   const adding = Boolean(state.busy["inbox-add"]);
   const files = useRef<HTMLInputElement>(null);
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
+  const [skippedDone, setSkippedDone] = useState<ReadonlySet<number>>(new Set());
 
-  useEffect(() => setSkipped(new Set()), [result]);
+  useEffect(() => {
+    setSkipped(new Set());
+    setSkippedDone(new Set());
+  }, [result]);
 
   const picked = result ? result.suggestions.filter((_, i) => !skipped.has(i)) : [];
-  const toggle = (index: number) =>
-    setSkipped((current) => {
-      const next = new Set(current);
-      if (!next.delete(index)) next.add(index);
-      return next;
-    });
+  const pickedDone = result
+    ? result.completions.filter((c) => !skippedDone.has(c.commitment_id)).map((c) => c.commitment_id)
+    : [];
+  const flip = (set: ReadonlySet<number>, key: number) => {
+    const next = new Set(set);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  };
+
+  const found = result ? result.suggestions.length : 0;
+  const looksDone = result ? result.completions.length : 0;
+  const headline = !result
+    ? ""
+    : found + looksDone === 0
+      ? "No new promises found."
+      : [
+          found ? `Found ${plural(found, "promise")} in ${plural(result.emails_read, "email")}.` : "",
+          looksDone
+            ? `${looksDone === 1 ? "1 promise looks" : `${looksDone} promises look`} done.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
 
   return (
     <section className="inbox" aria-labelledby="inbox-title">
@@ -81,7 +111,8 @@ export function InboxPanel() {
         <>
           <p className="note">
             Choose emails (<code>.eml</code> or <code>.mbox</code>, such as a Google Takeout export) and Kept
-            suggests the promises in them. You approve each one before it is added.
+            suggests the promises in them, and notices when an email shows one was already kept. You approve
+            each change before it happens.
           </p>
           <p className="note">
             Privacy: the sender&rsquo;s name, the subject and the text go to Nebius Token Factory. Nothing is
@@ -92,11 +123,7 @@ export function InboxPanel() {
 
       {!scanning && result && (
         <div className="inbox-result">
-          <p className="week-summary">
-            {result.suggestions.length === 0
-              ? "No new promises found."
-              : `Found ${plural(result.suggestions.length, "promise")} in ${plural(result.emails_read, "email")}.`}
-          </p>
+          <p className="week-summary">{headline}</p>
           {result.emails_skipped > 0 && (
             <p className="note">
               {plural(result.emails_skipped, "email")} not read: newsletters, automated mail, empty
@@ -104,12 +131,16 @@ export function InboxPanel() {
             </p>
           )}
 
-          {result.suggestions.length > 0 && (
+          {found > 0 && (
             <ul className="suggestions" aria-label="Promises found in your mail">
               {result.suggestions.map((s, i) => (
                 <li key={`${s.source_id}-${s.source_quote}`}>
                   <label className="suggestion">
-                    <input type="checkbox" checked={!skipped.has(i)} onChange={() => toggle(i)} />
+                    <input
+                      type="checkbox"
+                      checked={!skipped.has(i)}
+                      onChange={() => setSkipped(flip(skipped, i))}
+                    />
                     <span>
                       <span className="suggestion-title">
                         {who(s)}: {s.description}
@@ -125,19 +156,45 @@ export function InboxPanel() {
             </ul>
           )}
 
+          {looksDone > 0 && (
+            <>
+              <h3 className="inbox-subhead">Looks done</h3>
+              <ul className="suggestions" aria-label="Promises your mail shows are done">
+                {result.completions.map((c) => (
+                  <li key={c.commitment_id}>
+                    <label className="suggestion">
+                      <input
+                        type="checkbox"
+                        checked={!skippedDone.has(c.commitment_id)}
+                        onChange={() => setSkippedDone(flip(skippedDone, c.commitment_id))}
+                      />
+                      <span>
+                        <span className="suggestion-title">
+                          {owes(c)}: {c.description}
+                        </span>
+                        <span className="suggestion-meta">Mark as kept · {c.source_id}</span>
+                        <q className="suggestion-quote">{c.source_quote}</q>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
           <div className="inbox-actions">
-            {result.suggestions.length > 0 && (
+            {found + looksDone > 0 && (
               <button
                 className="btn btn-primary"
                 type="button"
-                disabled={adding || picked.length === 0}
-                onClick={() => void actions.acceptSuggestions(picked)}
+                disabled={adding || picked.length + pickedDone.length === 0}
+                onClick={() => void actions.acceptSuggestions(picked, pickedDone)}
               >
-                {adding ? "Adding…" : `Add ${plural(picked.length, "promise")} to my ledger`}
+                {adding ? "Applying…" : addLabel(picked.length, pickedDone.length, found > 0)}
               </button>
             )}
             <button className="btn btn-secondary" type="button" disabled={adding} onClick={actions.dismissInbox}>
-              {result.suggestions.length > 0 ? "Dismiss" : "Scan other mail"}
+              {found + looksDone > 0 ? "Dismiss" : "Scan other mail"}
             </button>
           </div>
         </div>

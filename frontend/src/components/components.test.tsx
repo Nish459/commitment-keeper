@@ -870,6 +870,7 @@ describe("InboxPanel", () => {
   const found = (overrides: Partial<ScanResult> = {}): ScanResult => ({
     emails_read: 6,
     emails_skipped: 1,
+    completions: [],
     suggestions: [
       {
         direction: "owed_to_me",
@@ -924,7 +925,7 @@ describe("InboxPanel", () => {
     const { actions } = renderApp(<InboxPanel />, { inbox: found() });
     await userEvent.click(screen.getByRole("checkbox", { name: /Aisha Khan/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add 1 promise to my ledger" }));
-    expect(actions.acceptSuggestions).toHaveBeenCalledWith([found().suggestions[0]]);
+    expect(actions.acceptSuggestions).toHaveBeenCalledWith([found().suggestions[0]], []);
   });
 
   it("cannot add when everything is unticked", async () => {
@@ -938,6 +939,41 @@ describe("InboxPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(actions.dismissInbox).toHaveBeenCalled();
     expect(actions.acceptSuggestions).not.toHaveBeenCalled();
+  });
+
+  const done = (id: number, overrides = {}) => ({
+    commitment_id: id,
+    direction: "owed_to_me" as const,
+    person: "Priya",
+    description: "Share the Q3 pricing deck",
+    source_id: "Email: Q3 pricing deck",
+    source_quote: "attached is the Q3 pricing deck",
+    ...overrides,
+  });
+
+  it("shows promises an email says are done, with the proof, ticked by default", () => {
+    renderApp(<InboxPanel />, { inbox: found({ completions: [done(2), done(3, { direction: "owed_by_me", person: "Marcus", description: "Review his doc" })] }) });
+    expect(screen.getByText("Found 2 promises in 6 emails. 2 promises look done.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Looks done" })).toBeInTheDocument();
+    expect(screen.getByText("Priya owed you: Share the Q3 pricing deck")).toBeInTheDocument();
+    expect(screen.getByText("You owed Marcus: Review his doc")).toBeInTheDocument();
+    expect(screen.getAllByText(/attached is the Q3 pricing deck/)).toHaveLength(2); // one proof each
+    expect(screen.getByRole("button", { name: "Add 2 promises and mark 2 kept" })).toBeEnabled();
+  });
+
+  it("applies only the ticked additions and the ticked completions", async () => {
+    const { actions } = renderApp(<InboxPanel />, { inbox: found({ completions: [done(2), done(3)] }) });
+    await userEvent.click(screen.getByRole("checkbox", { name: /Aisha Khan/ }));
+    await userEvent.click(screen.getAllByRole("checkbox", { name: /owed you/ })[1]!);
+    await userEvent.click(screen.getByRole("button", { name: "Add 1 promise and mark 1 kept" }));
+    expect(actions.acceptSuggestions).toHaveBeenCalledWith([found().suggestions[0]], [2]);
+  });
+
+  it("can mark things kept when there is nothing new to add", async () => {
+    const { actions } = renderApp(<InboxPanel />, { inbox: found({ suggestions: [], completions: [done(2)] }) });
+    expect(screen.getByText("1 promise looks done.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Mark 1 kept" }));
+    expect(actions.acceptSuggestions).toHaveBeenCalledWith([], [2]);
   });
 
   it("says plainly when there is nothing new", () => {
