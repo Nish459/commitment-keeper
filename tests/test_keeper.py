@@ -369,6 +369,7 @@ async def test_with_the_users_details_that_promise_is_researched_and_written_up(
     assert search.queries == ["venues in Austin"]
     assert "Austin, 12 people, Nov 4" in llm.last_user_prompt
     assert "do not ask about them" in llm.last_user_prompt
+    assert "not from Priya" in llm.last_user_prompt
     assert draft.sources == ["https://acme.test"]
 
 

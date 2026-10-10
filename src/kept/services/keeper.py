@@ -31,14 +31,16 @@ kind:
 - "send_file": I promised to send, share or forward something I already have or own: a document,
   deck, roadmap, report, file or link ("send the Q4 roadmap", "share the contract"). No queries.
 - "research": I promised information, analysis, a comparison or options that can be gathered from
-  the web ("compare vendors", "find venues", "summarize the new release").
-- "other": anything else (book, call, review, decide, pay, follow up).
+  the public web ("compare vendors", "find venues", "summarize the new release"). Never use it for
+  replies, answers or decisions: those depend on what I want to say, not on web facts.
+- "other": anything else, including book, call, review, decide, pay, and any reply, answer or
+  follow-up to a person ("reply to the vendor about the contract", "tell Sam our decision").
 
 queries: at most {max_queries} focused queries for "research" and "other" promises that involve
 finding, comparing, choosing or booking something. Empty for "send_file".
-needs: only for "other": up to 4 short noun phrases naming what only I can supply before this can
-be done or written up (for example "city", "headcount", "dates", "what you want to say"). Empty
-for the other kinds.
+needs: only for "other": every detail only I can supply before this can be done or written up,
+as up to 4 short noun phrases (booking a venue needs "city", "headcount" and "dates"; replying to
+someone needs "what you want to say"). Empty for the other kinds.
 Use only details that appear in the promise or my original words. Never add a location, date,
 name, budget or headcount of your own. If a key detail is missing, search generically."""
 
@@ -334,8 +336,9 @@ class KeeperService:
                 "content": f"Promise: {commitment.description}\n"
                 f'Original words: "{commitment.source_quote}"\n\n'
                 + (
-                    f"My details (facts from me: use them exactly and do not ask about them):"
-                    f" {details}\n\n"
+                    f"My details (facts from me, not from {commitment.person}. Use them exactly "
+                    f"and do not ask about them. Never call them {commitment.person}'s details or "
+                    f"say {commitment.person} shared them; just use them naturally): {details}\n\n"
                     if details
                     else ""
                 )
