@@ -145,8 +145,15 @@ def _deadline_sentence(due: date | None, today: date) -> str:
     """Worked out here, never by the model, so a reminder cannot get the date wrong."""
     if due is None:
         return "They gave no deadline."
-    verb = "was due" if due < today else "is due"
-    return f"It {verb} {due:%A %-d %B}."
+    gap = (due - today).days
+    named = f"{due:%A %-d %B}"
+    if gap == 0:
+        return f"It is due today ({named})."
+    if gap == 1:
+        return f"It is due tomorrow ({named})."
+    if gap == -1:
+        return f"It was due yesterday ({named})."
+    return f"It {'was due' if gap < 0 else 'is due'} {named}."
 
 
 def asks_questions(body: str) -> bool:

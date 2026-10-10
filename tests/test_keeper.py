@@ -638,6 +638,16 @@ async def test_the_deadline_in_a_reminder_is_worked_out_by_code_not_the_model() 
     await service.remind(cid, TODAY)
     assert "It is due Friday 9 October." in later.last_system_prompt
 
+    for due, expected in (
+        (date(2026, 10, 7), "It is due today (Wednesday 7 October)."),
+        (date(2026, 10, 8), "It is due tomorrow (Thursday 8 October)."),
+        (date(2026, 10, 6), "It was due yesterday (Tuesday 6 October)."),
+    ):
+        relative = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
+        service, _, _, cid = _chase_setup(relative, due)
+        await service.remind(cid, TODAY)
+        assert expected in relative.last_system_prompt
+
     none = FakeLLM(PLAN, DraftContent(subject="s", body="Hi.", uses_search_results=False))
     service, _, _, cid = _chase_setup(none, None)
     await service.remind(cid, TODAY)

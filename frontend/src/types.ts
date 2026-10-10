@@ -25,6 +25,7 @@ export interface Draft {
   sent_to: string | null;
   sent_at: string | null;
   needs_attachment: boolean;
+  kind: "deliverable" | "reminder";
 }
 
 export interface Capabilities {

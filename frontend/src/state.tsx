@@ -189,6 +189,7 @@ export interface Actions {
   saveProfile: (name: string) => Promise<boolean>;
   dismissToast: (id: number) => void;
   prepare: (commitmentId: number, details?: string) => Promise<void>;
+  remind: (commitmentId: number) => Promise<void>;
   sweep: () => Promise<void>;
   checkWeek: () => Promise<void>;
   scanInbox: (input: File[] | "sample") => Promise<void>;
@@ -316,6 +317,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await refresh().catch(() => undefined);
       },
 
+      async remind(commitmentId) {
+        dispatch({ type: "select", id: commitmentId });
+        await withBusy(String(commitmentId), () =>
+          guarded(async () => {
+            await api.remind(commitmentId);
+            await refresh();
+          }, "Reminder ready for your review."),
+        );
+      },
+
       async loadAttachments(draftId) {
         try {
           dispatch({ type: "attachments", draftId, files: await api.attachments(draftId) });
@@ -434,11 +445,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         withBusy(`draft-${draftId}`, () =>
           guarded(
             async () => {
-              await api.approve(draftId, to);
+              const approved = await api.approve(draftId, to);
               await refresh();
               if (to) dispatch({ type: "contacts", contacts: await api.contacts() });
+              // A reminder is not the work I promised, so it never marks anything kept.
+              toast(
+                approved.kind === "reminder"
+                  ? to
+                    ? `Reminder sent to ${to}.`
+                    : "Reminder approved."
+                  : to
+                    ? `Email sent to ${to}. Marked as kept.`
+                    : "Approved. Marked as kept.",
+              );
             },
-            to ? `Email sent to ${to}. Marked as kept.` : "Approved. Marked as kept.",
           ),
         ),
 

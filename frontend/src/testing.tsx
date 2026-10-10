@@ -22,6 +22,7 @@ export function makeActions(): Actions {
     saveProfile: vi.fn().mockResolvedValue(true),
     dismissToast: vi.fn(),
     prepare: vi.fn().mockResolvedValue(undefined),
+    remind: vi.fn().mockResolvedValue(undefined),
     sweep: vi.fn().mockResolvedValue(undefined),
     checkWeek: vi.fn().mockResolvedValue(undefined),
     scanInbox: vi.fn().mockResolvedValue(undefined),
@@ -67,6 +68,7 @@ export function draft(overrides: Partial<Draft> = {}): Draft {
     sent_to: null,
     sent_at: null,
     needs_attachment: false,
+    kind: "deliverable",
     ...overrides,
   };
 }

@@ -981,3 +981,58 @@ describe("Detail when Kept needs the user's details", () => {
     expect(screen.getByRole("button", { name: "Research and draft" })).toBeEnabled();
   });
 });
+
+describe("Detail chasing a promise made to me", () => {
+  const theirs = commitment({ direction: "owed_to_me", person: "Priya", description: "Share the deck" });
+  const reminder = (overrides = {}) => draft({ kind: "reminder", subject: "Quick nudge", ...overrides });
+
+  it("offers a reminder, and says nothing is sent", async () => {
+    const { actions } = renderApp(<Detail />, { commitments: [theirs], selectedId: 1 });
+    expect(screen.getByText(/You're waiting on Priya/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is sent/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Draft a reminder" }));
+    expect(actions.remind).toHaveBeenCalledWith(1);
+    expect(screen.queryByRole("button", { name: "Research and draft" })).not.toBeInTheDocument();
+  });
+
+  it("shows progress while the reminder is written", () => {
+    renderApp(<Detail />, { commitments: [theirs], selectedId: 1, busy: { "1": true } });
+    expect(screen.getByText("Writing a reminder")).toBeInTheDocument();
+  });
+
+  it("summarises a pending reminder and opens it for review", async () => {
+    const { actions } = renderApp(<Detail />, {
+      commitments: [{ ...theirs, status: "ready_for_review" }],
+      drafts: [reminder()],
+      selectedId: 1,
+    });
+    const summary = screen.getByRole("article", { name: "Email draft summary" });
+    expect(within(summary).getByText("Reminder ready for your review")).toBeInTheDocument();
+    await userEvent.click(within(summary).getByRole("button", { name: "Review reminder" }));
+    expect(actions.openReview).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Draft a reminder" })).not.toBeInTheDocument();
+  });
+
+  it("words the review window and the demo note as a reminder", () => {
+    renderApp(<Detail />, {
+      ...{ commitments: [{ ...theirs, status: "ready_for_review" }], selectedId: 1 },
+      drafts: [reminder()],
+      reviewOpen: true,
+      capabilities: { email: { enabled: false, sender: "", recipients: [] }, demo: true, access_code: false, unlocked: false },
+    });
+    expect(screen.getByRole("dialog", { name: "Reminder to Priya" })).toBeInTheDocument();
+    expect(screen.getByText(/approving a reminder only records it/)).toBeInTheDocument();
+    expect(screen.queryByText(/marks the promise as kept/)).not.toBeInTheDocument();
+  });
+
+  it("lets the user nudge again after a reminder went out", async () => {
+    const { actions } = renderApp(<Detail />, {
+      commitments: [theirs],
+      drafts: [reminder({ status: "approved", sent_to: "priya@acme.com" })],
+      selectedId: 1,
+    });
+    expect(screen.getByText("Reminder sent to priya@acme.com")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Draft another reminder" }));
+    expect(actions.remind).toHaveBeenCalledWith(1);
+  });
+});

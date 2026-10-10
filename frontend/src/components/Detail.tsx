@@ -122,7 +122,9 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
         {pending && !email.enabled && !draft.needs_attachment && (
           <p className="note">
             {state.capabilities.demo ? (
-              "In the demo, approving marks the promise as kept and nothing is emailed. Copy the text, or run Kept yourself to send it."
+              draft.kind === "reminder"
+                ? "In the demo, approving a reminder only records it and nothing is emailed. Copy the text, or run Kept yourself to send it."
+                : "In the demo, approving marks the promise as kept and nothing is emailed. Copy the text, or run Kept yourself to send it."
             ) : (
               <>
                 Sending is off. Add your SMTP settings to <code>.env</code> to send from here, or copy the
@@ -170,7 +172,15 @@ function DraftView({ draft, person }: { draft: Draft; person: string }) {
 function DraftSummary({ draft }: { draft: Draft }) {
   const { actions } = useApp();
   const pending = draft.status === "pending";
-  const label = pending ? "Draft ready for your review" : draft.sent_to ? `Sent to ${draft.sent_to}` : "Approved";
+  const reminder = draft.kind === "reminder";
+  const noun = reminder ? "Reminder" : "Draft";
+  const label = pending
+    ? `${noun} ready for your review`
+    : draft.sent_to
+      ? `${reminder ? "Reminder sent" : "Sent"} to ${draft.sent_to}`
+      : reminder
+        ? "Reminder approved"
+        : "Approved";
   return (
     <article className="draft-summary" aria-label="Email draft summary">
       <p className="draft-summary-label">{label}</p>
@@ -181,7 +191,7 @@ function DraftSummary({ draft }: { draft: Draft }) {
         type="button"
         onClick={actions.openReview}
       >
-        {pending ? "Review draft" : "View email"}
+        {pending ? `Review ${noun.toLowerCase()}` : "View email"}
       </button>
     </article>
   );
@@ -213,7 +223,9 @@ function ReviewDialog({ draft, person }: { draft: Draft; person: string }) {
   return (
     <dialog ref={dialog} className="review" aria-labelledby="review-title" onClose={actions.closeReview}>
       <div className="review-head">
-        <h2 id="review-title">Email to {person}</h2>
+        <h2 id="review-title">
+          {draft.kind === "reminder" ? "Reminder" : "Email"} to {person}
+        </h2>
         <button className="btn btn-quiet" type="button" onClick={actions.closeReview}>
           Close
         </button>
@@ -265,11 +277,57 @@ function NeedsDetails({ c, needs }: { c: Commitment; needs: string[] }) {
   );
 }
 
+/** Something someone owes me: Kept can write a friendly nudge, never send it unasked. */
+function Chase({ c, draft }: { c: Commitment; draft: Draft | null }) {
+  const { state, actions } = useApp();
+  if (state.busy[String(c.id)]) {
+    return (
+      <div className="working" aria-busy="true">
+        <span className="spinner" aria-hidden="true" />
+        <div>
+          <p className="working-title">Writing a reminder</p>
+          <p className="note">Kept is writing a short, friendly nudge. This usually takes a few seconds.</p>
+        </div>
+      </div>
+    );
+  }
+  if (c.status === "done") return <p className="note">Marked as kept.</p>;
+  const reminder = draft && draft.kind === "reminder" ? draft : null;
+  const waiting = reminder?.status === "pending";
+  const sent = reminder?.status === "approved";
+  return (
+    <>
+      {reminder && (waiting || sent) && (
+        <>
+          <DraftSummary draft={reminder} />
+          <ReviewDialog draft={reminder} person={c.person} />
+        </>
+      )}
+      {!waiting && (
+        <div className="prepare">
+          <p className="note">
+            {sent
+              ? `You can nudge ${c.person} again if it is still outstanding.`
+              : `You're waiting on ${c.person}. Kept can write a friendly reminder for you to review. Nothing is sent.`}
+          </p>
+          <button
+            className={`btn ${sent ? "btn-secondary" : "btn-primary"}`}
+            type="button"
+            onClick={() => void actions.remind(c.id)}
+          >
+            {sent ? "Draft another reminder" : "Draft a reminder"}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function WorkArea({ c, draft }: { c: Commitment; draft: Draft | null }) {
   const { state, actions } = useApp();
 
   if (c.direction === "owed_to_me") {
-    return <p className="note">You're waiting on {c.person}. There's nothing for Kept to prepare.</p>;
+    return <Chase c={c} draft={draft} />;
   }
   if (state.busy[String(c.id)]) {
     return (
