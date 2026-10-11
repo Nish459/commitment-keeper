@@ -137,6 +137,8 @@ domain  <-  services  <-  adapters (llm, tavily, sqlite, smtp, egress)  <-  api 
 - It does not connect to Gmail or Outlook, and it does not read your calendar. Mail comes in as `.eml` or
   `.mbox` files you choose (a Google Takeout export works). Only the sender's name, the subject and the
   text go to the model, never addresses, and nothing is stored until you add a promise.
+- Deadline wording is understood in English ("by Friday", "next Monday", "in 2 weeks", "last Friday").
+  Notes in other languages are read and their promises found, but the deadlines come back blank.
 - The hosted demo is ephemeral by design, so cross-session memory is shown on a local install.
 - NVIDIA NemoClaw, OpenShell and Hermes Agent were evaluated but not used (alpha, aimed at DGX/WSL).
   Kept implements its own audited egress allowlist instead.
