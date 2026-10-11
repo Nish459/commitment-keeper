@@ -1078,3 +1078,32 @@ describe("Detail chasing a promise made to me", () => {
     expect(actions.remind).toHaveBeenCalledWith(1);
   });
 });
+
+describe("When the first load fails", () => {
+  it("says so and offers a retry instead of loading forever", async () => {
+    const { actions } = renderApp(<Hero />, { loading: false, loadError: "Can't reach the Kept server." });
+    expect(screen.getByRole("heading", { name: "Couldn\u2019t load your promises." })).toBeInTheDocument();
+    expect(screen.getByText("Can't reach the Kept server.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(actions.reload).toHaveBeenCalled();
+  });
+});
+
+describe("Source links in a draft", () => {
+  const body = (url: string) => `Hello.\n\nSources:\n[1] ${url}`;
+
+  it("link only to real web pages", () => {
+    renderApp(<DraftBody body={body("https://www.acme.test/page")} />);
+    expect(screen.getByRole("link", { name: "acme.test" })).toHaveAttribute("href", "https://www.acme.test/page");
+  });
+
+  it.each(["javascript:alert(1)", "data:text/html,<script>x</script>", "file:///etc/passwd", "vbscript:x"])(
+    "never turn %s into a clickable link",
+    (url) => {
+      renderApp(<DraftBody body={body(url)} />);
+      const sources = screen.getByRole("list", { name: "Sources" });
+      expect(within(sources).queryByRole("link")).not.toBeInTheDocument();
+      expect(within(sources).getByText(url)).toBeInTheDocument();
+    },
+  );
+});

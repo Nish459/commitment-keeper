@@ -342,8 +342,11 @@
   min-width: 0;
 }
 .token-person {
+  overflow: hidden;
   font-size: var(--step--1);
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .token-desc {
   display: -webkit-box;

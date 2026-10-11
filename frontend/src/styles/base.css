@@ -11,6 +11,8 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  /* A name or note with no spaces must wrap, never widen the page. */
+  overflow-wrap: anywhere;
   padding-bottom: var(--s-5);
   background: var(--paper);
   color: var(--ink);

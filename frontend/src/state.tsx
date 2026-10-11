@@ -50,6 +50,7 @@ export interface State {
   filter: FilterId;
   busy: Record<string, true>;
   loading: boolean;
+  loadError: string | null;
   sealedId: number | null;
   privacyOpen: boolean;
   reviewOpen: boolean;
@@ -80,6 +81,7 @@ export const initialState: State = {
   filter: "open",
   busy: {},
   loading: true,
+  loadError: null,
   sealedId: null,
   privacyOpen: false,
   reviewOpen: false,
@@ -111,6 +113,8 @@ type Action =
   | { type: "togglePrivacy" }
   | { type: "review"; open: boolean }
   | { type: "composer"; open: boolean; sample?: boolean; mode?: ComposerMode }
+  | { type: "loadStarted" }
+  | { type: "loadFailed"; message: string }
   | { type: "toast"; toast: ToastMessage }
   | { type: "dismissToast"; id: number };
 
@@ -124,7 +128,12 @@ function reducer(state: State, action: Action): State {
         people: action.people,
         audit: action.audit,
         loading: false,
+        loadError: null,
       };
+    case "loadStarted":
+      return { ...state, loading: true, loadError: null };
+    case "loadFailed":
+      return { ...state, loading: false, loadError: action.message };
     case "setup":
       return { ...state, allowlist: action.hosts, capabilities: action.capabilities };
     case "contacts":
@@ -205,6 +214,7 @@ export interface Actions {
   ingest: (name: string, text: string) => Promise<void>;
   addPromise: (promise: NewPromise) => Promise<void>;
   copy: (draft: Draft) => Promise<void>;
+  reload: () => Promise<void>;
 }
 
 export interface AppContextValue {
@@ -242,6 +252,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "loaded", commitments, drafts, people, audit });
     return commitments;
   }, []);
+
+  const load = useCallback(async () => {
+    try {
+      const [hosts, capabilities, contacts, profile, commitments] = await Promise.all([
+        api.allowlist(),
+        api.capabilities(),
+        api.contacts(),
+        api.profile(),
+        refresh(),
+      ]);
+      dispatch({ type: "profile", name: profile.name });
+      dispatch({ type: "setup", hosts, capabilities });
+      dispatch({ type: "contacts", contacts });
+      const first = commitments.find((c) => c.status === "ready_for_review") ?? commitments[0];
+      if (first) dispatch({ type: "select", id: first.id });
+    } catch (error) {
+      // Never leave the page saying "Loading" forever: say what happened and offer a retry.
+      dispatch({
+        type: "loadFailed",
+        message: error instanceof Error ? error.message : "Something went wrong.",
+      });
+    }
+  }, [refresh]);
 
   const guarded = useCallback(
     async (work: () => Promise<void>, success?: string) => {
@@ -497,31 +530,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
       },
 
+      reload: () => {
+        dispatch({ type: "loadStarted" });
+        return load();
+      },
+
       copy: (draft) =>
         guarded(
           () => navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`),
           "Email copied.",
         ),
     }),
-    [guarded, refresh, toast, withBusy],
+    [guarded, load, refresh, toast, withBusy],
   );
 
   useEffect(() => {
-    void guarded(async () => {
-      const [hosts, capabilities, contacts, profile, commitments] = await Promise.all([
-        api.allowlist(),
-        api.capabilities(),
-        api.contacts(),
-        api.profile(),
-        refresh(),
-      ]);
-      dispatch({ type: "profile", name: profile.name });
-      dispatch({ type: "setup", hosts, capabilities });
-      dispatch({ type: "contacts", contacts });
-      const first = commitments.find((c) => c.status === "ready_for_review") ?? commitments[0];
-      if (first) dispatch({ type: "select", id: first.id });
-    });
-  }, [guarded, refresh]);
+    void load();
+  }, [load]);
 
   const value = useMemo(() => ({ state, actions, today: startOfToday() }), [state, actions]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

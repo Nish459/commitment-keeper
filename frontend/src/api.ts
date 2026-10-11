@@ -1,3 +1,4 @@
+import { startOfToday, toISO } from "./format";
 import type {
   Attachment,
   AuditEvent,
@@ -24,8 +25,11 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
+  // The server may be a day ahead of the visitor (UTC vs a US evening), so say what day it is here.
+  const headers = new Headers(init?.headers);
+  headers.set("X-Kept-Today", toISO(startOfToday()));
   try {
-    response = await fetch(path, init);
+    response = await fetch(path, { ...init, headers });
   } catch {
     throw new ApiError("Can't reach the Kept server. Check that it's running.");
   }

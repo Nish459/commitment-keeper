@@ -38,6 +38,7 @@ export function makeActions(): Actions {
     ingest: vi.fn().mockResolvedValue(undefined),
     addPromise: vi.fn().mockResolvedValue(undefined),
     copy: vi.fn().mockResolvedValue(undefined),
+    reload: vi.fn().mockResolvedValue(undefined),
   };
 }
 

@@ -78,6 +78,16 @@ function blocks(text: string): ReactNode[] {
   return out;
 }
 
+/** A draft's text can be edited and is partly written by a model, so only http(s) becomes a link. */
+export function isWebUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -101,9 +111,13 @@ export function DraftBody({ body }: { body: string }) {
           {sources.map(({ n, url }) => (
             <li key={n} id={`src-${n}`}>
               <span className="src-n">{n}</span>
-              <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
-                {hostOf(url)}
-              </a>
+              {isWebUrl(url) ? (
+                <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
+                  {hostOf(url)}
+                </a>
+              ) : (
+                <span title={url}>{url}</span>
+              )}
             </li>
           ))}
         </ol>

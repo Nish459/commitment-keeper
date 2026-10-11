@@ -6,6 +6,20 @@ export function Hero() {
   const { state, actions, today } = useApp();
   const { commitments, drafts, loading, busy } = state;
 
+  if (state.loadError) {
+    return (
+      <section className="hero" aria-labelledby="headline">
+        <h1 id="headline">Couldn&rsquo;t load your promises.</h1>
+        <p className="hero-sub">{state.loadError}</p>
+        <div className="hero-actions">
+          <button className="btn btn-primary" type="button" onClick={() => void actions.reload()}>
+            Try again
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   if (loading) {
     return (
       <section className="hero" aria-labelledby="headline">
