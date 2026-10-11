@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import httpx
+import pytest
 
 from kept.adapters.llm import LLMOutputError
 from kept.adapters.sqlite import Database
@@ -286,3 +287,51 @@ async def test_chasing_a_promise_i_made_is_refused(
     cid = (await client.post("/api/notes", json={"source_id": "n1", "text": NOTE})).json()[0]["id"]
     assert (await client.post(f"/api/commitments/{cid}/remind")).status_code == 409
     assert (await client.post("/api/commitments/99/remind")).status_code == 404
+
+
+async def test_a_blank_note_is_refused_before_any_model_call(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, _ = env
+    for text in ("", "   ", "\n\t \n"):
+        response = await client.post("/api/notes", json={"source_id": "n", "text": text})
+        assert response.status_code == 422
+    assert llm.prompts == []  # nothing was spent
+
+
+async def _tomorrow_for(client: httpx.AsyncClient, llm: ScriptedLLM, header: str | None) -> str:
+    llm.responses[ExtractionResult] = ExtractionResult(
+        commitments=[
+            ExtractedCommitment(
+                direction=Direction.OWED_BY_ME,
+                person="Priya",
+                description="send it",
+                due_phrase="tomorrow",
+                source_quote="I will send it tomorrow",
+            )
+        ]
+    )
+    headers = {"X-Kept-Today": header} if header is not None else {}
+    response = await client.post(
+        "/api/notes",
+        json={"source_id": f"n-{header}", "text": "I will send it tomorrow."},
+        headers=headers,
+    )
+    return str(response.json()[0]["due"])
+
+
+async def test_deadlines_follow_the_visitors_own_date_not_the_servers(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch],
+) -> None:
+    client, llm, _ = env  # the server's clock says Wednesday 7 October
+    assert await _tomorrow_for(client, llm, None) == "2026-10-08"
+    assert await _tomorrow_for(client, llm, "2026-10-06") == "2026-10-07"  # still Tuesday evening
+    assert await _tomorrow_for(client, llm, "2026-10-08") == "2026-10-09"  # already Thursday
+
+
+@pytest.mark.parametrize("bad", ["2026-10-20", "yesterday", "", "2026-13-45", "2026-10-07; drop"])
+async def test_an_implausible_or_garbled_date_is_ignored(
+    env: tuple[httpx.AsyncClient, ScriptedLLM, FakeSearch], bad: str
+) -> None:
+    client, llm, _ = env
+    assert await _tomorrow_for(client, llm, bad) == "2026-10-08"

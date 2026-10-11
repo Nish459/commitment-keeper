@@ -144,6 +144,18 @@ def infer_owner(mails: Sequence[Mail]) -> str | None:
     return address if seen >= max(2, len(mails) // 2) else None
 
 
+def _without_repeats(mails: Sequence[Mail]) -> list[Mail]:
+    """The same message often turns up twice (two exports, a copy in Sent). Read it once."""
+    seen: set[tuple[object, ...]] = set()
+    unique: list[Mail] = []
+    for mail in mails:
+        key = (mail.sender_address, mail.subject, mail.sent, normalize_text(mail.body))
+        if key not in seen:
+            seen.add(key)
+            unique.append(mail)
+    return unique
+
+
 def _topic_words(text: str) -> set[str]:
     """Stems of the words that identify a subject ("pricing", "deck"), not a kind of action."""
     words = re.findall(r"[a-z0-9]+", text.lower())
@@ -233,6 +245,7 @@ class InboxService:
         """Read the newest `max_emails` messages and suggest the promises in them."""
         if not mails:
             raise InvalidMailError("No emails were found in those files.")
+        mails = _without_repeats(mails)
         owner = mailbox_owner or infer_owner(mails)
         newest = sorted(mails, key=lambda m: m.sent or date.min, reverse=True)[:max_emails]
         marked = self._mark_mine(newest, owner)
@@ -260,10 +273,15 @@ class InboxService:
 
         existing = self._commitments.list()
         suggestions: list[Suggestion] = []
+        seen: set[tuple[str, str]] = set()
         for found in outcomes:
             for item in found or []:
                 if any(_similar(c, item.person, item.description) for c in existing):
                     continue
+                key = (item.source_id, normalize_text(item.source_quote))
+                if key in seen:
+                    continue  # the same email read twice, for example from two files
+                seen.add(key)
                 suggestions.append(
                     Suggestion(
                         direction=item.direction,

@@ -47,3 +47,17 @@ def test_end_of_week_on_weekend_rolls_to_next_friday() -> None:
 
 def test_invalid_calendar_date_is_none() -> None:
     assert resolve_due("Feb 31", TUE) is None
+
+
+@pytest.mark.parametrize(
+    ("phrase", "expected"),
+    [
+        ("yesterday", date(2026, 10, 5)),
+        ("by last Monday", date(2026, 10, 5)),  # the Monday before this Tuesday
+        ("last Tuesday", date(2026, 9, 29)),  # a week ago, not today
+        ("last Friday", date(2026, 10, 2)),
+        ("last Sunday", date(2026, 10, 4)),
+    ],
+)
+def test_phrases_about_the_past_resolve_to_the_past(phrase: str, expected: date) -> None:
+    assert resolve_due(phrase, TUE) == expected

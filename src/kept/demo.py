@@ -9,6 +9,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from kept.adapters.sqlite import Database
@@ -100,7 +101,7 @@ class _Entry:
 class SessionManager:
     def __init__(
         self,
-        factory: Callable[[], "Container"],
+        factory: Callable[[date | None], "Container"],
         *,
         max_sessions: int,
         ttl_seconds: float,
@@ -123,7 +124,7 @@ class SessionManager:
         return len(self._entries)
 
     def get_or_create(
-        self, session_id: str | None, client: str = ""
+        self, session_id: str | None, client: str = "", today: date | None = None
     ) -> tuple[str, "Container", bool]:
         """Return (id, workspace, created). Unknown, expired or malformed ids get a fresh one.
 
@@ -141,7 +142,7 @@ class SessionManager:
             oldest = min(self._entries, key=lambda sid: self._entries[sid].last_used)
             self._to_close.append(self._entries.pop(oldest).container)
         new_id = secrets.token_urlsafe(24)
-        container = self._factory()
+        container = self._factory(today)
         self._entries[new_id] = _Entry(container, now)
         return new_id, container, True
 
@@ -222,9 +223,9 @@ _SAMPLES: list[tuple[Direction, str, str, str, str]] = [
 ]
 
 
-def seed_sample_data(container: "Container") -> None:
+def seed_sample_data(container: "Container", today: date | None = None) -> None:
     """Preload a believable week so a visitor sees a working product before spending anything."""
-    today = container.today()
+    today = today or container.today()
     for direction, person, description, phrase, quote in _SAMPLES:
         container.commitments.add(
             Commitment(
@@ -239,7 +240,10 @@ def seed_sample_data(container: "Container") -> None:
 
 
 def build_demo_container(
-    settings: Settings, slots: asyncio.Semaphore, **overrides: Any
+    settings: Settings,
+    slots: asyncio.Semaphore,
+    visitor_today: date | None = None,
+    **overrides: Any,
 ) -> "Container":
     """A fresh in-memory workspace. Email is forced off no matter what the server has configured."""
     from kept.container import build_container
@@ -255,14 +259,14 @@ def build_demo_container(
         max_note_chars=settings.demo_max_note_chars,
     )
     container = build_container(demo_settings, db=Database(":memory:"), guard=guard, **overrides)
-    seed_sample_data(container)
+    seed_sample_data(container, visitor_today)
     return container
 
 
 def build_session_manager(settings: Settings, **overrides: Any) -> SessionManager:
     slots = asyncio.Semaphore(settings.demo_max_concurrent)
     return SessionManager(
-        lambda: build_demo_container(settings, slots, **overrides),
+        lambda visitor_today: build_demo_container(settings, slots, visitor_today, **overrides),
         max_sessions=settings.demo_max_sessions,
         ttl_seconds=settings.demo_session_minutes * 60,
     )

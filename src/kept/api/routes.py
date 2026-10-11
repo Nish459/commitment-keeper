@@ -16,6 +16,7 @@ from fastapi import (
 from pydantic import BaseModel, Field, StringConstraints
 
 from kept.adapters.mailfiles import parse_mail_files
+from kept.api.clientdate import HEADER, client_today
 from kept.container import Container
 from kept.domain.errors import EmailNotConfiguredError, InvalidMailError
 from kept.domain.models import (
@@ -58,16 +59,25 @@ def get_container(request: Request) -> Container:
 Deps = Annotated[Container, Depends(get_container)]
 
 
+def get_today(request: Request, c: Deps) -> date:
+    """Today for this visitor: their own calendar date when the browser reports a plausible one."""
+    return client_today(request.headers.get(HEADER), c.today())
+
+
+Today = Annotated[date, Depends(get_today)]
+
+
 class NoteIn(BaseModel):
     source_id: str = Field(min_length=1, max_length=200)
-    text: str = Field(min_length=1, max_length=50_000)
+    # Whitespace only is nothing: refuse it here rather than spend a model call on it.
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50_000)]
 
 
 @router.post("/notes")
-async def ingest_note(note: NoteIn, c: Deps) -> list[Commitment]:
+async def ingest_note(note: NoteIn, c: Deps, today: Today) -> list[Commitment]:
     """Extract and store the commitments found in a note."""
     async with c.guarded("notes", len(note.text)):
-        return await c.extraction.extract(note.source_id, note.text, c.today())
+        return await c.extraction.extract(note.source_id, note.text, today)
 
 
 class PromiseIn(BaseModel):
@@ -90,6 +100,7 @@ MAX_MAIL_UPLOAD_BYTES = 10 * 1024 * 1024
 @router.post("/inbox/scan")
 async def scan_inbox(
     c: Deps,
+    today: Today,
     files: Annotated[list[UploadFile] | None, File()] = None,
     sample: Annotated[bool, Form()] = False,
 ) -> ScanResult:
@@ -99,7 +110,7 @@ async def scan_inbox(
     """
     owner: str | None = None
     if sample:
-        mails = sample_mails(c.today())
+        mails = sample_mails(today)
         owner = SAMPLE_OWNER
     elif files:
         uploads: list[tuple[str, bytes]] = []
@@ -117,7 +128,7 @@ async def scan_inbox(
     capped = c.guard is not None and not c.guard.unlocked
     limit = c.settings.demo_max_inbox_emails if capped else c.settings.inbox_max_emails
     async with c.guarded("inbox"):
-        return await c.inbox.scan(mails, c.today(), max_emails=limit, mailbox_owner=owner)
+        return await c.inbox.scan(mails, today, max_emails=limit, mailbox_owner=owner)
 
 
 class SuggestionIn(BaseModel):
@@ -175,30 +186,32 @@ class PrepareIn(BaseModel):
 
 
 @router.post("/commitments/{commitment_id}/prepare")
-async def prepare(commitment_id: int, c: Deps, body: PrepareIn | None = None) -> Draft:
+async def prepare(
+    commitment_id: int, c: Deps, today: Today, body: PrepareIn | None = None
+) -> Draft:
     """Research and draft the deliverable for a promise I made."""
     async with c.guarded("drafts"):
-        return await c.keeper.prepare(commitment_id, c.today(), body.details if body else "")
+        return await c.keeper.prepare(commitment_id, today, body.details if body else "")
 
 
 @router.post("/commitments/{commitment_id}/remind")
-async def remind(commitment_id: int, c: Deps) -> Draft:
+async def remind(commitment_id: int, c: Deps, today: Today) -> Draft:
     """Draft a friendly reminder to someone who promised me something."""
     async with c.guarded("drafts"):
-        return await c.keeper.remind(commitment_id, c.today())
+        return await c.keeper.remind(commitment_id, today)
 
 
 @router.post("/sweep")
-async def sweep(c: Deps) -> SweepResult:
+async def sweep(c: Deps, today: Today) -> SweepResult:
     """Draft everything that is overdue or due within three days and has no draft yet."""
-    return await c.sweep.run(c.today())
+    return await c.sweep.run(today)
 
 
 @router.post("/week-check")
-async def week_check(c: Deps) -> WeekCheck:
+async def week_check(c: Deps, today: Today) -> WeekCheck:
     """Nemotron Ultra reviews every open promise for conflicts, dependencies and risks."""
     async with c.guarded("checks"):
-        return await c.planner.check_week(c.today())
+        return await c.planner.check_week(today)
 
 
 @router.get("/drafts")
@@ -314,9 +327,9 @@ def unlock_demo(body: AccessIn, c: Deps) -> dict[str, bool]:
 
 
 @router.get("/people")
-def people(c: Deps) -> list[PersonSummary]:
+def people(c: Deps, today: Today) -> list[PersonSummary]:
     """What Kept remembers about each person: promises kept, open items, emails sent."""
-    return c.people.all(c.today())
+    return c.people.all(today)
 
 
 @router.get("/contacts")

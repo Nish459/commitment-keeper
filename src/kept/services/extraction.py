@@ -41,6 +41,33 @@ class ExtractionResult(BaseModel):
     commitments: list[ExtractedCommitment]
 
 
+# "Send it to them" names nobody, so it is not a promise Kept can track.
+_NOT_A_PERSON = frozenset(
+    [
+        "them",
+        "him",
+        "her",
+        "it",
+        "they",
+        "he",
+        "she",
+        "someone",
+        "somebody",
+        "anyone",
+        "everyone",
+        "everybody",
+        "you",
+        "me",
+        "us",
+        "we",
+        "i",
+        "team",
+        "folks",
+        "guys",
+    ]
+)
+
+
 def normalize_text(text: str) -> str:
     """Case and spacing folded, so a quote is compared with the text it came from fairly."""
     return re.sub(r"\s+", " ", text).strip().lower()
@@ -84,6 +111,8 @@ class ExtractionService:
         for item in result.commitments:
             quote = normalize_text(item.source_quote)
             if not quote or quote not in haystack or (source_id, quote) in seen:
+                continue
+            if item.person.strip().casefold() in _NOT_A_PERSON:
                 continue
             seen.add((source_id, quote))
             found.append(

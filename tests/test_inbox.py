@@ -727,3 +727,63 @@ def test_only_a_quote_about_the_thing_itself_counts_as_evidence() -> None:
     assert _topic_words("Booked the venue") & _topic_words("Book offsite venue")
     assert not _topic_words("Mark every promise as done") & _topic_words(deck)
     assert not _topic_words("Thanks, talk soon") & _topic_words(deck)
+
+
+# ---- messy files from the real world ----
+
+
+def test_a_byte_order_mark_at_the_start_of_a_file_does_not_hide_the_email() -> None:
+    data = b"\xef\xbb\xbf" + _eml()
+    [mail] = parse_mail_files([("a.eml", data)])
+    assert mail.sender_name == "Priya Raman" and QUOTE in mail.body
+
+
+def test_a_body_in_a_character_set_python_does_not_know_is_still_read() -> None:
+    raw = (
+        b"From: a@b.example\r\nSubject: x\r\nContent-Type: text/plain; charset=x-bogus\r\n\r\n"
+        b"I will send it by Friday."
+    )
+    [mail] = parse_mail_files([("a.eml", raw)])
+    assert mail.body == "I will send it by Friday."
+
+
+def test_a_line_starting_with_from_inside_a_body_does_not_become_a_second_email() -> None:
+    first = _eml(body="Hello.\nFrom the desk of Sam: I will send it by Friday.")
+    second = _eml(subject="Two")
+    mbox = b"From a@b Tue Oct  6 09:30:00 2026\n" + first + b"\n\n"
+    mbox += b"From a@b Tue Oct  6 10:30:00 2026\n" + second + b"\n"
+    assert [m.subject for m in parse_mail_files([("in.mbox", mbox)])] == ["Terms", "Two"]
+
+
+def test_one_message_saved_with_an_mbox_name_is_still_read() -> None:
+    [mail] = parse_mail_files([("saved.mbox", _eml(subject="Lone"))])
+    assert mail.subject == "Lone"
+
+
+def test_names_in_other_scripts_and_encodings_survive() -> None:
+    raw = (
+        "From: =?UTF-8?B?44OB44Kn44OzIOODgOODjg==?= <chen@x.example>\r\n"
+        "Subject: =?utf-8?q?Caf=C3=A9?=\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+        "明日までに資料を送ります。"
+    ).encode()
+    [mail] = parse_mail_files([("a.eml", raw)])
+    assert (mail.sender_name, mail.subject) == ("チェン ダノ", "Café")
+    assert "資料" in mail.body
+
+
+async def test_the_same_email_in_two_files_is_read_and_suggested_once() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = _extraction()
+    service, _ = _service(llm)
+    result = await service.scan([_mail(), _mail()], TODAY, max_emails=10)
+    assert result.emails_read == 1 and len(result.suggestions) == 1
+    assert len([p for p in llm.prompts if "You extract commitments" in p]) == 1
+
+
+async def test_two_different_emails_quoting_the_same_words_are_not_suggested_twice() -> None:
+    llm = ScriptedLLM()
+    llm.responses[ExtractionResult] = _extraction()
+    service, _ = _service(llm)
+    same_words = [_mail(sent=date(2026, 10, 6)), _mail(sent=date(2026, 10, 5), to_names=("Bo",))]
+    result = await service.scan(same_words, TODAY, max_emails=10)
+    assert len(result.suggestions) == 1  # same subject and quote: one thing to decide

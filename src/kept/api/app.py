@@ -1,12 +1,14 @@
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import date
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from kept import __version__
+from kept.api.clientdate import HEADER, reported_date
 from kept.api.routes import router
 from kept.config import Settings, get_settings
 from kept.container import Container, build_container
@@ -114,6 +116,7 @@ def create_app(
             session_id, workspace, _ = manager.get_or_create(
                 request.cookies.get(COOKIE_NAME),
                 client=request.client.host if request.client else "",
+                today=reported_date(request.headers.get(HEADER), date.today()),
             )
         except DemoLimitError as exc:
             return JSONResponse({"detail": str(exc)}, status_code=429)

@@ -92,3 +92,16 @@ async def test_description_is_saved_in_sentence_case() -> None:
     (saved,) = await ExtractionService(llm, repo).extract("note-1", NOTE, date(2026, 10, 6))
     assert saved.description == "Share the deck"
     assert saved.person == "The vendor"
+
+
+async def test_a_promise_to_a_pronoun_is_not_tracked() -> None:
+    items = [
+        _item("I'll send her the competitor comparison by Friday.").model_copy(
+            update={"person": person}
+        )
+        for person in ("Them", " it ", "Someone", "Priya")
+    ]
+    llm = FakeLLM(ExtractionResult(commitments=items))
+    repo = SqliteCommitmentRepository(Database(":memory:"))
+    saved = await ExtractionService(llm, repo).extract("n1", NOTE, date(2026, 10, 6))
+    assert [c.person for c in saved] == ["Priya"]

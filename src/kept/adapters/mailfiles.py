@@ -15,6 +15,7 @@ from kept.domain.errors import InvalidMailError
 from kept.domain.models import Mail
 
 MAX_BODY_CHARS = 6000
+_BOM = b"\xef\xbb\xbf"
 
 _REPLY_MARKER = re.compile(
     r"^\s*(on .{5,200} wrote:|-{2,}\s*original message\s*-{2,}|from:\s.+\ssent:\s)",
@@ -77,7 +78,8 @@ def _body(message: EmailMessage) -> str:
     try:
         content = part.get_content()
     except (LookupError, ValueError):  # an unknown charset or a broken part
-        return ""
+        raw = part.get_payload(decode=True)
+        content = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else ""
     text = _html_to_text(content) if part.get_content_type() == "text/html" else content
     return _CONTROL.sub("", strip_quoted(text))[:MAX_BODY_CHARS]
 
@@ -130,6 +132,7 @@ def _parse_eml(data: bytes) -> Iterator[Mail]:
 def _parse_mbox(data: bytes) -> Iterator[Mail]:
     # `mailbox.mbox` reads from a path, so the bytes pass through a temporary file that is
     # removed straight away.
+    found: list[Mail] = []
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "mail.mbox"
         path.write_bytes(data)
@@ -137,10 +140,13 @@ def _parse_mbox(data: bytes) -> Iterator[Mail]:
         try:
             for key in box.iterkeys():
                 message: Message = message_from_bytes(box.get_bytes(key), policy=policy.default)
-                if isinstance(message, EmailMessage):
-                    yield _to_mail(message)
+                # A fragment without a sender is a body line that happened to start with "From ".
+                if isinstance(message, EmailMessage) and message["from"] is not None:
+                    found.append(_to_mail(message))
         finally:
             box.close()
+    # A single message saved with an .mbox name has no "From " separator line.
+    yield from found or _parse_eml(data)
 
 
 def parse_mail_files(files: Sequence[tuple[str, bytes]]) -> list[Mail]:
@@ -155,7 +161,7 @@ def parse_mail_files(files: Sequence[tuple[str, bytes]]) -> list[Mail]:
         else:
             raise InvalidMailError(f"{name}: use .eml or .mbox files.")
         try:
-            mails.extend(parser(data))
+            mails.extend(parser(data.removeprefix(_BOM)))
         except (OSError, UnicodeError, ValueError, mailbox.Error) as exc:
             raise InvalidMailError(f"{name} could not be read as email.") from exc
     return mails

@@ -683,3 +683,18 @@ async def test_chasing_twice_while_a_reminder_is_pending_returns_the_same_draft(
     first = await service.remind(cid, TODAY)
     second = await service.remind(cid, TODAY)
     assert first.id == second.id and llm.draft_calls == 1
+
+
+async def test_a_model_written_subject_is_one_tidy_line() -> None:
+    messy = "  Competitor\r\nBcc: evil@example.com   comparison  " + "x" * 400
+    llm = FakeLLM(PLAN, DraftContent(subject=messy, body="Acme sells widgets [1]."))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME]))
+    subject = (await service.prepare(cid, TODAY)).subject
+    assert "\n" not in subject and "\r" not in subject and len(subject) <= 200
+    assert subject.startswith("Competitor Bcc: evil@example.com comparison")
+
+    reminder = FakeLLM(
+        PLAN, DraftContent(subject="Nudge\nBcc: x", body="Hi.", uses_search_results=False)
+    )
+    service, _, _, cid = _chase_setup(reminder, None)
+    assert (await service.remind(cid, TODAY)).subject == "Nudge Bcc: x"

@@ -175,6 +175,11 @@ def _postscript(reminders: list[Commitment], today: date) -> str:
     return "\n\nP.S. A gentle reminder: " + "; ".join(parts) + "."
 
 
+def _one_line(subject: str) -> str:
+    """A subject goes into an email header: one line, no stray whitespace, a sane length."""
+    return " ".join(subject.split())[:200]
+
+
 def _sign(body: str, name: str) -> str:
     """Replace any model-written closing with a deterministic one, so the name is never invented."""
     closing = f"Best,\n{name}" if name else "Best,"
@@ -286,7 +291,7 @@ class KeeperService:
         draft = self._drafts.add(
             Draft(
                 commitment_id=commitment_id,
-                subject=content.subject.strip(),
+                subject=_one_line(content.subject),
                 body=body,
                 sources=sources,
                 needs_attachment=plan.kind == "send_file",
@@ -326,7 +331,7 @@ class KeeperService:
         draft = self._drafts.add(
             Draft(
                 commitment_id=commitment_id,
-                subject=content.subject.strip(),
+                subject=_one_line(content.subject),
                 body=_sign(content.body, self._signature().strip()),
                 kind=DraftKind.REMINDER,
             )

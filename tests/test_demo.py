@@ -6,6 +6,7 @@ import pytest
 
 from kept.api.app import create_app
 from kept.config import Settings
+from kept.container import Container
 from kept.demo import COOKIE_NAME, SessionManager, build_session_manager
 from kept.domain.errors import DemoLimitError
 from tests.fakes import NOTE, FakeSearch, ScriptedLLM
@@ -386,4 +387,39 @@ async def test_a_flood_of_cookieless_requests_gets_a_429_not_a_workspace(tmp_pat
         assert "busy" in blocked.json()["detail"]
         assert (await visitor.get("/api/commitments")).status_code == 200  # has a cookie: fine
         assert len(manager) == 1
+    await manager.aclose()
+
+
+async def test_sample_promises_are_dated_from_the_visitors_calendar_not_the_servers(
+    settings: Settings,
+) -> None:
+    """A US evening is already tomorrow in UTC. The visitor must not see everything a day late."""
+    manager = _manager(settings)
+    server_view = manager.get_or_create(None)[1]
+    visitor_view = manager.get_or_create(None, today=date(2026, 10, 6))[1]  # server says the 7th
+
+    def deadline(container: Container, text: str) -> date | None:
+        return next(c.due for c in container.commitments.list() if text in c.description)
+
+    assert deadline(server_view, "budget sheet") == date(2026, 10, 8)  # "by tomorrow"
+    assert deadline(visitor_view, "budget sheet") == date(2026, 10, 7)
+
+
+async def test_the_browsers_date_reaches_the_workspace_it_creates(settings: Settings) -> None:
+    from datetime import timedelta
+
+    yesterday = date.today() - timedelta(days=1)  # plausible: within a day of the server's clock
+    manager = _manager(settings)
+    async with _client(settings, manager) as client:
+        response = await client.get(
+            "/api/commitments", headers={"X-Kept-Today": yesterday.isoformat()}
+        )
+    budget = next(c for c in response.json() if "budget sheet" in c["description"])
+    assert budget["due"] == date.today().isoformat()  # "by tomorrow" from the visitor's yesterday
+
+    # A date far from the server's clock is ignored: the workspace keeps its own.
+    async with _client(settings, manager) as other:
+        response = await other.get("/api/commitments", headers={"X-Kept-Today": "2001-01-01"})
+    budget = next(c for c in response.json() if "budget sheet" in c["description"])
+    assert budget["due"] == "2026-10-08"
     await manager.aclose()

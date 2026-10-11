@@ -15,6 +15,9 @@ _ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _IN_N = re.compile(r"\bin (\d+) (day|week)s?\b")
 _DAY_MONTH = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+)\b")
 _MONTH_DAY = re.compile(r"\b([a-z]+) (\d{1,2})(?:st|nd|rd|th)?\b")
+_LAST_WEEKDAY = re.compile(
+    r"\blast (" + "|".join(sorted(_WEEKDAYS, key=len, reverse=True)) + r")\b"
+)
 _WEEKDAY = re.compile(
     r"\b(?:(next|this|coming) )?(" + "|".join(sorted(_WEEKDAYS, key=len, reverse=True)) + r")\b"
 )
@@ -49,6 +52,11 @@ def resolve_due(phrase: str | None, today: date) -> date | None:
             return None
     if "tomorrow" in text:
         return today + timedelta(days=1)
+    if "yesterday" in text:
+        return today - timedelta(days=1)
+    if match := _LAST_WEEKDAY.search(text):
+        behind = (today.weekday() - _WEEKDAYS[match[1]]) % 7 or 7
+        return today - timedelta(days=behind)
     if match := _IN_N.search(text):
         return today + timedelta(days=int(match[1]) * (7 if match[2] == "week" else 1))
     if re.search(r"\bend of (?:the |this )?month\b|\beom\b", text):
