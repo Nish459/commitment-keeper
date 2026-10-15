@@ -18,3 +18,7 @@ data/*.db-*
 node_modules/
 frontend/dist/
 *.tsbuildinfo
+
+# Drafts for the submission, kept local for now
+docs/VIDEO_SCRIPT.md
+docs/SUBMISSION.md
