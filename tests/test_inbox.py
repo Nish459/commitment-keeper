@@ -787,3 +787,20 @@ async def test_two_different_emails_quoting_the_same_words_are_not_suggested_twi
     same_words = [_mail(sent=date(2026, 10, 6)), _mail(sent=date(2026, 10, 5), to_names=("Bo",))]
     result = await service.scan(same_words, TODAY, max_emails=10)
     assert len(result.suggestions) == 1  # same subject and quote: one thing to decide
+
+
+def test_the_sample_inbox_can_be_saved_as_a_real_mbox_that_reads_back_the_same(
+    tmp_path: Path,
+) -> None:
+    from kept.services.sample_inbox import write_sample_mbox
+
+    path = tmp_path / "sub" / "sample.mbox"
+    assert write_sample_mbox(path, TODAY) == len(sample_mails(TODAY))
+    read_back = parse_mail_files([("sample.mbox", path.read_bytes())])
+    original = sample_mails(TODAY)
+    assert [(m.sender_name, m.subject, m.sent) for m in read_back] == [
+        (m.sender_name, m.subject, m.sent) for m in original
+    ]
+    assert infer_owner(read_back) == "you@kept.example"  # so "from me" works after an upload
+    assert write_sample_mbox(path, TODAY) == len(original)  # rewriting replaces, never appends
+    assert len(parse_mail_files([("sample.mbox", path.read_bytes())])) == len(original)

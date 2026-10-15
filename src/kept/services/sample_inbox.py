@@ -1,6 +1,10 @@
 """A made-up week of mail for the demo. Synthetic people and addresses only."""
 
-from datetime import date, timedelta
+import mailbox
+from datetime import UTC, date, datetime, time, timedelta
+from email.message import EmailMessage
+from email.utils import format_datetime, formataddr
+from pathlib import Path
 
 from kept.domain.models import Mail
 
@@ -108,3 +112,31 @@ def sample_mails(today: date) -> list[Mail]:
             "Are you free for lunch on Thursday? There's a new place near the office.",
         ),
     ]
+
+
+def _to_message(mail: Mail) -> EmailMessage:
+    message = EmailMessage()
+    message["From"] = formataddr((mail.sender_name, mail.sender_address))
+    message["To"] = ", ".join(
+        formataddr(pair) for pair in zip(mail.to_names, mail.to_addresses, strict=True)
+    )
+    message["Subject"] = mail.subject
+    sent = mail.sent or date.today()
+    message["Date"] = format_datetime(datetime.combine(sent, time(9, 0), tzinfo=UTC))
+    message.set_content(mail.body)
+    return message
+
+
+def write_sample_mbox(path: Path, today: date) -> int:
+    """Save the sample inbox as a real .mbox file, so the upload can be shown on screen."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
+    box = mailbox.mbox(str(path))
+    try:
+        mails = sample_mails(today)
+        for mail in mails:
+            box.add(_to_message(mail))
+        box.flush()
+    finally:
+        box.close()
+    return len(mails)

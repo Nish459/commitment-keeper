@@ -22,3 +22,4 @@ frontend/dist/
 # Drafts for the submission, kept local for now
 docs/VIDEO_SCRIPT.md
 docs/SUBMISSION.md
+data/*.mbox
