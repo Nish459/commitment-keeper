@@ -113,14 +113,12 @@ export function InboxPanel() {
 
       {!scanning && !result && (
         <>
-          <p className="note">
-            Choose emails (<code>.eml</code> or <code>.mbox</code>, such as a Google Takeout export) and Kept
-            suggests the promises in them, and notices when an email shows one was already kept. You approve
-            each change before it happens.
+          <p className="note inbox-note">
+            Choose <code>.eml</code> or <code>.mbox</code> files and Kept suggests the promises in them, and
+            which ones are already done. You approve every change.
           </p>
-          <p className="note">
-            Privacy: the sender&rsquo;s name, the subject and the text go to Nebius Token Factory, to
-            Nemotron Nano and Super. Nothing is stored until you add it.
+          <p className="note inbox-note">
+            Sender names, subjects and text go to Nebius Token Factory. Nothing is stored until you add it.
           </p>
         </>
       )}

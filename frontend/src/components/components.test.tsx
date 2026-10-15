@@ -894,7 +894,7 @@ describe("InboxPanel", () => {
 
   it("offers files or a sample inbox, and says what leaves the machine", async () => {
     const { actions } = renderApp(<InboxPanel />);
-    expect(screen.getByText(/the sender.s name, the subject and the text go to Nebius/)).toBeInTheDocument();
+    expect(screen.getByText(/Sender names, subjects and text go to Nebius Token Factory/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Try a sample inbox" }));
     expect(actions.scanInbox).toHaveBeenCalledWith("sample");
   });

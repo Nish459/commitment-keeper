@@ -1133,6 +1133,12 @@ tr.is-blocked td {
   padding-top: var(--s-4);
   border-top: 2px solid var(--rule);
 }
+.inbox .inbox-note {
+  font-size: var(--step--1);
+}
+.inbox .inbox-note + .inbox-note {
+  margin-top: var(--s-1);
+}
 .inbox-actions {
   display: flex;
   flex-wrap: wrap;
