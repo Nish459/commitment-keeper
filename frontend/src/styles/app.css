@@ -1133,11 +1133,51 @@ tr.is-blocked td {
   padding-top: var(--s-4);
   border-top: 2px solid var(--rule);
 }
-.inbox .inbox-note {
+.inbox .section-head {
+  position: relative;
+}
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.info-button {
+  display: inline-flex;
+  padding: 0.25rem;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+}
+.info-button:hover,
+.info-button[aria-expanded="true"] {
+  color: var(--ink);
+}
+.info-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.info-tip {
+  position: absolute;
+  top: calc(100% + var(--s-1));
+  left: 0;
+  z-index: 15;
+  display: grid;
+  gap: var(--s-2);
+  width: min(26rem, 100%);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--lift);
+  color: var(--ink);
   font-size: var(--step--1);
 }
-.inbox .inbox-note + .inbox-note {
-  margin-top: var(--s-1);
+.info-tip[hidden] {
+  display: none;
+}
+.inbox .inbox-note {
+  font-size: var(--step--1);
 }
 .inbox-actions {
   display: flex;

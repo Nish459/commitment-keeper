@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { dueLabel, plural } from "../format";
 import { useApp } from "../state";
 import type { Completion, Suggestion } from "../types";
+import { InfoTip } from "./InfoTip";
 
 const FILE_TYPES = ".eml,.mbox,message/rfc822,application/mbox";
 
@@ -61,7 +62,19 @@ export function InboxPanel() {
   return (
     <section className="inbox" aria-labelledby="inbox-title">
       <div className="section-head">
-        <h2 id="inbox-title">Your mail</h2>
+        <div className="section-title">
+          <h2 id="inbox-title">Your mail</h2>
+          <InfoTip label="About the mail scan">
+            <p>
+              Choose <code>.eml</code> or <code>.mbox</code> files (a Google Takeout export works). Kept
+              suggests the promises in them, and which ones are already done. You approve every change.
+            </p>
+            <p>
+              Sender names, subjects and text go to Nebius Token Factory. Nothing is stored until you add
+              it.
+            </p>
+          </InfoTip>
+        </div>
         {!result && (
           <div className="inbox-actions">
             <input
@@ -112,15 +125,7 @@ export function InboxPanel() {
       )}
 
       {!scanning && !result && (
-        <>
-          <p className="note inbox-note">
-            Choose <code>.eml</code> or <code>.mbox</code> files and Kept suggests the promises in them, and
-            which ones are already done. You approve every change.
-          </p>
-          <p className="note inbox-note">
-            Sender names, subjects and text go to Nebius Token Factory. Nothing is stored until you add it.
-          </p>
-        </>
+        <p className="note inbox-note">Find the promises hiding in your email.</p>
       )}
 
       {!scanning && result && (

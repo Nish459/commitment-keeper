@@ -892,9 +892,34 @@ describe("InboxPanel", () => {
     ...overrides,
   });
 
-  it("offers files or a sample inbox, and says what leaves the machine", async () => {
+  it("keeps the explanation behind an info button that opens, and closes with Escape", async () => {
+    renderApp(<InboxPanel />);
+    const info = screen.getByRole("button", { name: "About the mail scan" });
+    const note = screen.getByText(/Sender names, subjects and text go to Nebius Token Factory/);
+    expect(info).toHaveAttribute("aria-expanded", "false");
+    expect(note).not.toBeVisible();
+
+    await userEvent.click(info);
+    expect(info).toHaveAttribute("aria-expanded", "true");
+    expect(note).toBeVisible();
+    expect(screen.getByText(/You approve every change/)).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+    expect(info).toHaveAttribute("aria-expanded", "false");
+    expect(note).not.toBeVisible();
+    expect(info).toHaveFocus();
+  });
+
+  it("closes the explanation when the user clicks elsewhere", async () => {
+    renderApp(<InboxPanel />);
+    const info = screen.getByRole("button", { name: "About the mail scan" });
+    await userEvent.click(info);
+    await userEvent.click(screen.getByRole("heading", { name: "Your mail" }));
+    expect(info).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("offers files or a sample inbox", async () => {
     const { actions } = renderApp(<InboxPanel />);
-    expect(screen.getByText(/Sender names, subjects and text go to Nebius Token Factory/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Try a sample inbox" }));
     expect(actions.scanInbox).toHaveBeenCalledWith("sample");
   });
