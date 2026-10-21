@@ -124,6 +124,7 @@ _DELIVER_PROMPT = (
 )
 
 _CITATION = re.compile(r"\[(\d+)\]")
+_GROUPED_CITATION = re.compile(r"\[(\d+(?:\s*[,;]\s*\d+)+)\]")
 # Phrases that hand the work back to the recipient. A closing courtesy such as "let me know if
 # you have questions" is fine and deliberately not matched.
 _ASKING = re.compile(
@@ -173,6 +174,16 @@ def _postscript(reminders: list[Commitment], today: date) -> str:
         verb = "was due" if c.due < today else "is due"
         parts.append(f'"{c.description}" {verb} {c.due:%-d %b}')
     return "\n\nP.S. A gentle reminder: " + "; ".join(parts) + "."
+
+
+def tidy_body(body: str) -> str:
+    """Make a model-written body fit what the code and the page understand: one [n] per source
+    (never "[1, 2]", which would hide sources from the list and the links) and no backticks."""
+
+    def split(match: re.Match[str]) -> str:
+        return "".join(f"[{n}]" for n in re.findall(r"\d+", match[1]))
+
+    return _GROUPED_CITATION.sub(split, body).replace("`", "")
 
 
 def _one_line(subject: str) -> str:
@@ -442,7 +453,7 @@ class KeeperService:
         return content
 
     async def _complete(self, messages: list[dict[str, str]]) -> DraftContent:
-        return await self._llm.complete_json(
+        content = await self._llm.complete_json(
             Tier.SUPER,
             messages,
             DraftContent,
@@ -450,3 +461,5 @@ class KeeperService:
             max_tokens=4096,
             thinking=False,
         )
+        content.body = tidy_body(content.body)
+        return content

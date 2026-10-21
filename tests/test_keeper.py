@@ -24,6 +24,7 @@ from kept.services.keeper import (
     ResearchPlan,
     UngroundedDraftError,
     asks_questions,
+    tidy_body,
 )
 from kept.services.people import PeopleService
 
@@ -698,3 +699,27 @@ async def test_a_model_written_subject_is_one_tidy_line() -> None:
     )
     service, _, _, cid = _chase_setup(reminder, None)
     assert (await service.remind(cid, TODAY)).subject == "Nudge Bcc: x"
+
+
+@pytest.mark.parametrize(
+    ("raw", "tidy"),
+    [
+        ("Free tier [1, 2].", "Free tier [1][2]."),
+        ("Use cases [6, 7, 8] and more [3;4].", "Use cases [6][7][8] and more [3][4]."),
+        ("Already fine [1][2] and [3].", "Already fine [1][2] and [3]."),
+        ("The `deep` tier is slow.", "The deep tier is slow."),
+        ("Sources:\n[1] https://a.test/x?y=[2,3]", "Sources:\n[1] https://a.test/x?y=[2][3]"),
+    ],
+)
+def test_grouped_citations_become_one_marker_each_and_backticks_go(raw: str, tidy: str) -> None:
+    assert tidy_body(raw) == tidy
+
+
+async def test_sources_cited_only_in_a_group_still_appear_in_the_list() -> None:
+    body = "Tavily is cheap [1, 2]. Exa is semantic `deep` search [2]."
+    llm = FakeLLM(PLAN, DraftContent(subject="s", body=body))
+    service, _, _, cid = _setup(llm, FakeSearch([ACME, BETA]))
+    draft = await service.prepare(cid, TODAY)
+    assert draft.sources == ["https://acme.test", "https://beta.test"]
+    assert "[1][2]" in draft.body and "`" not in draft.body and "[1, 2]" not in draft.body
+    assert "Sources:\n[1] https://acme.test\n[2] https://beta.test" in draft.body
