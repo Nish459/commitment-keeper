@@ -1,6 +1,6 @@
 # Stage 1: build the web UI. The output is plain static files, so it always builds natively
 # (fast) even when the image targets another CPU, e.g. amd64 from an ARM Mac.
-FROM --platform=$BUILDPLATFORM node:24-slim AS web
+FROM --platform=$BUILDPLATFORM node:26-slim AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
