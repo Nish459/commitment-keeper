@@ -86,9 +86,11 @@ across the whole list of promises.
   20 KB drafting prompt spent all 3,000 tokens thinking (16 seconds, empty content). Passing
   `chat_template_kwargs.enable_thinking=false` fixed it, and a trivial call went from 2.6 s to 1.0 s. This
   deserves a prominent place in the cookbook and the model cards.
-- **Weekday arithmetic is unreliable.** Asking for ISO dates scored 5/13 on Nano with thinking off, 8/10 with
-  thinking on (50 seconds), and 7/10 on Super. Having the model copy the phrase ("by Friday") and resolving
-  the date in code scored 9/9 on all three. Let Nemotron read and classify, and do date math in code.
+- **Weekday arithmetic is weak, most of all on Nano.** Asking for ISO dates scored 5/13 on Nano with thinking
+  off, 8/10 with thinking on (50 seconds), and 7/10 on Super. On a later 11-phrase probe Nano scored 6/11
+  twice, while comparable models scored 8 to 11 out of 11 (see the comparison below). Having the model copy
+  the phrase ("by Friday") and resolving the date in code scored 9/9 on all three. Let Nemotron read and
+  classify, and do date math in code.
 - **Hallucination under thin context.** With no search results, Super wrote "no suitable venues found" (false).
   With vague input it invented a city and a new deadline. Explicit rules fixed it.
 - **Drafts are not always consistent.** For the same promise, Super sometimes delivers a cited comparison and
@@ -96,6 +98,38 @@ across the whole list of promises.
 
 **Would I build on it again?** Yes. The tiering story is real and the models are good at the reading and
 classifying work. I would turn reasoning off by default for anything short and structured.
+
+### How Nemotron compared with other models on Token Factory
+
+I ran Kept's own tasks on seven models available on Token Factory, using `scripts/compare_models.py`: Nemotron
+Nano and Super, Qwen3-30B-A3B (the same size as Nano), Gemma 3 27B, gpt-oss-120b, Qwen3-235B and DeepSeek V4
+Flash. Same prompts and temperature 0, two runs each. The other models were given more output room than
+Nemotron, so a model that thinks silently is not marked down for running out of tokens. Scores are by code.
+
+| Model | Extraction (9 items) | ISO dates (11 phrases) | Cited drafts that finished (3 per run) | Invented numbers per draft | Seconds per draft |
+|---|---|---|---|---|---|
+| Nemotron 3 Nano 30B-A3B | 9/9 | 6/11, 6/11 | 3/3, 2/3 | 0 | 5 to 7 |
+| Qwen3-30B-A3B | 8/10 | 11/11, 11/11 | 3/3 but **never cited** | 0 | 1 to 4 |
+| Gemma 3 27B | 9/9 | 10/11, 10/11 | 3/3, 3/3 | **1** | 4 to 5 |
+| Nemotron 3 Super 120B-A12B | 9/9 | 10/11, 10/11 | 3/3, 3/3 | 0 | 2 to 3 |
+| gpt-oss-120b | 9/9 | 10/11, 8/11 | 3/3, 3/3 | 0 | 3 to 4 |
+| Qwen3-235B | 9/9 | 10/11, 10/11 | 3/3, 3/3 | 0 | 70 to 81 |
+| DeepSeek V4 Flash | 9/9 | 10/11, 10/11 | 3/3, 1/3 | 0 | 19 to 32 |
+
+What it showed:
+- **Extraction is a strength of every model here.** Nemotron Nano matched models up to eight times its size,
+  and beat the same-size Qwen3-30B, which filed "Priya said she will share the deck" as something I owe
+  (a flipped direction).
+- **Nemotron Super was the most dependable for grounded drafts.** Always cited, no invented numbers, no
+  failures in either run, and the fastest of the large models. Qwen3-30B never cited its sources, and
+  Gemma added one number that was not in the evidence to every draft.
+- **Nano's date conversion is the one clear weakness** (6/11, against 8 to 11 for the rest). That is why Kept
+  works dates out in code.
+- **No model asked the reader questions** on the fixed evidence, so that failure came from my prompt and thin
+  context, not from one model family.
+- Honest limits: small samples and two runs. Kept's prompts were tuned on Nemotron, which favors it a little.
+  The models ran in parallel, so the speed numbers are rough. gpt-oss moved from 10/11 to 8/11 between runs,
+  so treat single scores as indications, not rankings.
 
 ## NemoClaw / OpenShell / Hermes Agent
 
@@ -140,4 +174,5 @@ multi-source comparison.
 | 2026-10-07 | AI Cloud | Registry creation failed with PermissionDenied. Cause: AI Cloud billing balance was $0. Hackathon promo credits apply to Token Factory only. I read the error as a permissions problem; the billing page showed the zero balance. |
 | 2026-10-09 | Hosting | Checked the rules: Token Factory runtime calls satisfy "runs on Token Factory or AI Cloud", so hosting the demo elsewhere is allowed. Hosted on Render's free tier (Docker). |
 | 2026-10-09 | Nemotron 3 Nano | Mail scan: with a one-line "who is speaking" context, direction was right for every promise across 3 live runs on a sample inbox (5 promises from 6 emails, newsletter and small talk ignored). An email I wrote vs an email to me needed different context lines; without them "I'll send it" would be filed as my promise. |
+| 2026-10-22 | Nemotron vs 6 other models | Ran Kept's extraction, an ISO-date probe and cited drafts on seven Token Factory models (`scripts/compare_models.py`, two runs). Nemotron Nano and Super matched or beat the field on extraction and grounded drafts; Nano was weakest on dates (6/11 vs 8-11). Details in the comparison section above. |
 | 2026-10-09 | Nemotron 3 Super | Same research promise ("competitor comparison") produced a clean cited draft once and a draft asking the recipient to clarify on another run. Non-deterministic; logged as a known issue. |

@@ -82,6 +82,7 @@ Small samples, run on a laptop against the real Token Factory models:
 | Competitor-comparison drafts that deliver instead of asking the recipient questions | 6/6 runs |
 | Sample inbox scan: right people, directions and dates | 5/5 promises in 4 runs |
 | Finished promises noticed from email, with the proof quote | 2/2 in 4 runs |
+| The same tasks on 7 Token Factory models (`scripts/compare_models.py`) | Nemotron Super was the most dependable for cited drafts; Nano was weakest on dates. Details in [`FEEDBACK.md`](FEEDBACK.md) |
 
 ## Trying the demo
 
