@@ -19,9 +19,8 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-# Drafts for the submission, kept local for now
-docs/VIDEO_SCRIPT.md
-docs/SUBMISSION.md
+# Local documents and submission drafts, kept out of the repo for now
+docs/
 data/*.mbox
 gallery/
 scripts/capture_gallery.mjs
