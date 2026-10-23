@@ -12,6 +12,27 @@ the deadline, and shows you exactly what left your machine. Nothing is sent with
 
 > **Live demo:** https://commitment-keeper.onrender.com (free hosting, so the first load after idle can take about a minute; see [Trying the demo](#trying-the-demo))
 
+## Screenshots
+
+<p align="center"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/01-home.png" alt="Kept's home screen: a due-date timeline of the promises you owe and are owed" width="900"></p>
+
+<table>
+<tr>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/02-promise-and-quote.png" alt="A promise with the exact sentence it came from"><br><sub>Every promise comes with the exact sentence it was found in.</sub></td>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/03-cited-draft.png" alt="A drafted email with numbered citations in the review window"><br><sub>A cited draft to review, edit and approve. Nothing is sent without a click.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/04-mail-scan.png" alt="Promises found in email, plus promises an email shows are already done"><br><sub>Mail scan: new promises, and promises an email shows are already done, with proof.</sub></td>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/05-week-check.png" alt="Nemotron Ultra's week check showing conflicts and a suggested order"><br><sub>Week check by Nemotron Ultra: conflicts, late dependencies, a suggested order.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/06-privacy-log.png" alt="The Privacy log listing every outbound request and the allowed hosts"><br><sub>The Privacy log: every outbound request, never the content.</sub></td>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/07-dark-mode.png" alt="The same screen in the dark theme"><br><sub>The dark theme.</sub></td>
+</tr>
+</table>
+
+<p align="center"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/08-how-it-works.png" alt="How Kept works: your notes and email, three Nemotron models on Nebius Token Factory plus Tavily, then your approval" width="900"></p>
+
 ## What it does
 
 | You do | Kept does |
