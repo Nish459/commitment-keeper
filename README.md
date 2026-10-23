@@ -18,16 +18,12 @@ the deadline, and shows you exactly what left your machine. Nothing is sent with
 
 <table>
 <tr>
-<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/02-promise-and-quote.png" alt="A promise with the exact sentence it came from"><br><sub>Every promise comes with the exact sentence it was found in.</sub></td>
 <td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/03-cited-draft.png" alt="A drafted email with numbered citations in the review window"><br><sub>A cited draft to review, edit and approve. Nothing is sent without a click.</sub></td>
-</tr>
-<tr>
 <td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/04-mail-scan.png" alt="Promises found in email, plus promises an email shows are already done"><br><sub>Mail scan: new promises, and promises an email shows are already done, with proof.</sub></td>
-<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/05-week-check.png" alt="Nemotron Ultra's week check showing conflicts and a suggested order"><br><sub>Week check by Nemotron Ultra: conflicts, late dependencies, a suggested order.</sub></td>
 </tr>
 <tr>
+<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/05-week-check.png" alt="Nemotron Ultra's week check showing conflicts and a suggested order"><br><sub>Week check by Nemotron Ultra: conflicts, late dependencies, a suggested order.</sub></td>
 <td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/06-privacy-log.png" alt="The Privacy log listing every outbound request and the allowed hosts"><br><sub>The Privacy log: every outbound request, never the content.</sub></td>
-<td width="50%"><img src="https://github.com/Nish459/commitment-keeper/releases/download/readme-assets/07-dark-mode.png" alt="The same screen in the dark theme"><br><sub>The dark theme.</sub></td>
 </tr>
 </table>
 
