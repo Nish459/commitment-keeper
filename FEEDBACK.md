@@ -33,7 +33,7 @@ practical. The fixes I would ask for are the error message and the docs.
 
 **Used for:** I tried, and it is not part of the shipped app. I prepared a Serverless endpoint deployment
 and got as far as creating a registry, then stopped, so I cannot give feedback on running a workload there.
-Kept is hosted on Render's free tier instead. The Nebius steps I prepared are in `docs/DEPLOY.md` (option B).
+Kept is hosted on Render's free tier instead. I prepared the Nebius Serverless deployment steps but did not run them.
 
 **What happened**
 - The CLI sign-in worked once I chose browser federation over a service account. The prompts asked for a
