@@ -6,6 +6,7 @@ checks that the mail login works. Prints how long each step takes, so you know w
 """
 
 import asyncio
+import re
 import smtplib
 import sys
 import tempfile
@@ -95,6 +96,10 @@ async def run(settings: Settings, mbox: Path) -> int:
             )
             r.report(not asks_questions(body), "delivers instead of asking the recipient questions")
             r.report("Best," in body, "signed")
+            r.report(
+                not re.search(r"\[\d+\s*[,;]", body) and "`" not in body,
+                "citations are one marker each, no raw backticks",
+            )
         else:
             r.report(False, "found the comparison promise")
 

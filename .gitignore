@@ -23,3 +23,5 @@ frontend/dist/
 docs/VIDEO_SCRIPT.md
 docs/SUBMISSION.md
 data/*.mbox
+gallery/
+scripts/capture_gallery.mjs
